@@ -159,6 +159,8 @@ transition:transform .1s, box-shadow .2s;
 .numbpm{width:58px;background:#0d1015;border:1px solid var(--line);border-radius:7px;color:var(--ink);
 font-family:var(--mono);font-size:12px;padding:5px 6px}
 .bpmlab{font-size:9px;letter-spacing:.18em;color:var(--faint)}
+.latrow{display:flex; align-items:center; gap:10px}
+.latrow label.silk{flex:1}
 .zoomrow{display:flex; align-items:center; gap:8px}
 .zoomrow .zlab{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);flex:1}
 .zbtn{width:30px;height:26px;border:1px solid var(--line);border-radius:7px;cursor:pointer;
@@ -327,6 +329,15 @@ animation:toastin .3s cubic-bezier(.3,1.4,.5,1) both;
 <span class="track"></span>
 <span class="slab">Мониторинг в наушники (через телефон)</span>
 </label>
+<label class="switch">
+<input type="checkbox" id="chkMonCut" checked>
+<span class="track"></span>
+<span class="slab">Глушить эхо на время записи (слушать себя в наушниках микрофона)</span>
+</label>
+<div class="latrow">
+<label class="silk" for="numLat">Сдвиг дубля назад (задержка), мс</label>
+<input type="number" class="numbpm" id="numLat" min="0" max="800" step="5" value="0">
+</div>
 </div>
 </section>
 
@@ -423,6 +434,12 @@ animation:toastin .3s cubic-bezier(.3,1.4,.5,1) both;
 <li>Откройте страницу в <b>Chrome (Android)</b> или Safari (iPhone), нажмите «Подключить микрофон» и разрешите доступ.</li>
 <li>В списке «Источник» выберите устройство <b>FIFINE / USB Audio Device</b>.</li>
 </ul>
+<h3>Задержка и эхо</h3>
+<ul>
+<li><b>Почему слышно дважды:</b> свой голос вы слышите сразу (наушники микрофона), а телефон возвращает его же с задержкой 150–400 мс. Убрать вторую копию «процессором» нельзя — можно только не выводить её.</li>
+<li><b>Рецепт:</b> воткните наушники в разъём 3,5 мм <b>на самом AM8</b>, оставьте включённым тумблер «Глушить эхо на время записи» — во время записи телефон молчит, вы слышите себя без задержки, минус и прошлые дубли продолжают играть.</li>
+<li><b>Компенсация:</b> записанный дубль автоматически сдвигается назад на величину задержки (поле «Сдвиг дубля назад, мс» подставляется само при подключении; можно подправить на слух). Так партия ложится ровно под минус и метроном.</li>
+</ul>
 <h3>Мультитрек</h3>
 <ul>
 <li>Загрузите минус — он ляжет в дорожку <b>INST</b>. Кнопка <b>⟳</b> в голове дорожки зацикливает его.</li>
@@ -432,7 +449,7 @@ animation:toastin .3s cubic-bezier(.3,1.4,.5,1) both;
 <li><b>Навигация:</b> тяните пустое место одним пальцем, чтобы листать таймлайн; двумя пальцами — щипок для зума и быстрая прокрутка. Кнопки «−/+» меняют масштаб ступенями.</li>
 <li>Громкость и Mute — в голове каждой дорожки. Экспорт сводит всё с учётом позиций, громкостей и мьютов.</li>
 </ul>
-<div class="tip">💡 <b>Совет по задержке:</b> воткните наушники в разъём 3,5 мм <b>на самом AM8</b> и регулируйте звук его ручкой — мониторинг будет без задержки. Тумблер «Мониторинг в наушники» при этом выключите, чтобы голос не двоился. Программный мониторинг удобен, если наушники подключены к телефону.</div>
+<div class="tip">💡 Если наушники подключены к телефону, а не к микрофону, программный мониторинг остаётся единственным способом слышать себя — он всегда будет с небольшой задержкой, это ограничение мобильного звука. Поэтому основной сценарий — наушники в AM8.</div>
 </div>
 </details>
 </div>
@@ -455,6 +472,7 @@ sources:[], instrLiveSrc:null,
 pps:48, lastProjDur:0, laneEls:{},
 liveEl:null, liveLast:0, liveStart:null,
 wakeLock:null, deviceId:null, busy:false,
+latIn:0, latOut:0,
 uid:0, vCounter:0
 };
 const PALETTE = ['#ff8a5c','#43e07c','#ffc24b','#b58cff','#ff6fa5','#7fd1ff','#ffd7a1','#45d0e0'];
@@ -534,13 +552,16 @@ return t.node;
 function applyInputGain(){ if(S.inputGain) S.inputGain.gain.value = $('rngIn').value/100; }
 function applyMonitor(){
 if(!S.monitorGain) return;
-S.monitorGain.gain.setTargetAtTime($('chkMon').checked ? 1 : 0, S.ctx.currentTime, .03);
+/* если включён «глушить эхо на время записи» — во время записи телефон голос не дублирует */
+const cut = S.recording && $('chkMonCut').checked;
+S.monitorGain.gain.setTargetAtTime(($('chkMon').checked && !cut) ? 1 : 0, S.ctx.currentTime, .03);
 }
 function applyTrackGains(){
 if(!S.ctx) return;
 for(const t of S.tracks)
 if(t.node) t.node.gain.setTargetAtTime(t.muted ? 0 : t.gain, S.ctx.currentTime, .02);
 }
+function latencyComp(){ return (parseFloat($('numLat').value) || 0) / 1000; }
 
 /* ═══════════ РЕКОРДЕР (AudioWorklet + запасной вариант) ═══════════ */
 const WORKLET_SRC = `
@@ -648,10 +669,21 @@ S.micSource.connect(S.inputGain);
 await initRecorder();
 if(!S.recConnected){ S.recorder.connect(S.inputGain); S.recConnected = true; }
 const name = (S.stream.getAudioTracks()[0] && S.stream.getAudioTracks()[0].label) || 'микрофон';
-const lat = (S.ctx.baseLatency || 0) + (S.ctx.outputLatency || 0);
+
+/* измеряем задержку: вход (если браузер сообщает) + выход */
+const trk = S.stream.getAudioTracks()[0];
+const sett = (trk.getSettings ? trk.getSettings() : {}) || {};
+S.latIn  = sett.latency || 0;
+S.latOut = S.ctx.outputLatency || S.ctx.baseLatency || 0;
+const lat = S.latIn + S.latOut;
+if(lat > 0){
+$('numLat').value = Math.round(lat * 1000);
+toast('Задержка ≈ ' + Math.round(lat*1000) + ' мс — компенсация подставлена', 'okk');
+}
+
 const stat = $('statLine');
 stat.textContent = name + ' · ' + (S.ctx.sampleRate/1000).toFixed(1) + ' кГц'
-+ (lat ? ' · задержка ≈ ' + Math.round(lat*1000) + ' мс' : '');
++ (lat > 0 ? ' · задержка ≈ ' + Math.round(lat*1000) + ' мс (вх ' + Math.round(S.latIn*1000) + ' + вых ' + Math.round(S.latOut*1000) + ')' : '');
 stat.className = 'statusline' + (/fifine/i.test(name) ? ' good' : '');
 $('ledUsb').classList.add('on');
 if(/fifine/i.test(name)) toast('FIFINE AM8 определён ✓', 'okk');
@@ -812,9 +844,14 @@ const at = now + delay + countDur;
 if(count) scheduleBeeps(now + delay);
 scheduleClips(at, from);
 startMetronome(at, from);
-if(mode === 'rec'){ S.recorder.start(at); beginLive(track, from); }
+if(mode === 'rec'){
+const comp = latencyComp();
+S.recorder.start(at);
+beginLive(track, Math.max(0, from - comp));   /* живой клип сразу со сдвигом */
+}
 S.run = { mode, t0:at, pos0:from, track };
 S.playing = true; S.recording = (mode === 'rec');
+applyMonitor();   /* глушим/возвращаем эхо */
 updateLeds(); wakeOn();
 if(mode === 'rec') toast(count ? 'Счёт… затем запись на ' + track.name : 'Запись на ' + track.name + '…', 'okk');
 }
@@ -835,17 +872,21 @@ const run = S.run;
 const pos = curPos();
 S.run = null; S.playing = false;
 const wasRec = S.recording; S.recording = false;
+applyMonitor();   /* мониторинг возвращается после записи */
 stopSources(); stopMetronome(); endLive();
 if(wasRec && S.recorder){
 const samples = await S.recorder.stop();
 if(samples.length > S.ctx.sampleRate * 0.08 && run.track){
 const buf = S.ctx.createBuffer(1, samples.length, S.ctx.sampleRate);
 buf.copyToChannel(samples, 0);
-const c = { id:uid(), buffer:buf, offset:0, dur:buf.duration, start:run.pos0,
+const comp = latencyComp();
+const c = { id:uid(), buffer:buf, offset:0, dur:buf.duration,
+start:Math.max(0, run.pos0 - comp),   /* компенсация задержки */
 name:run.track.name + '·дубль ' + (run.track.clips.length + 1) };
 run.track.clips.push(c);
 S.playhead = Math.min(projDur(), run.pos0 + buf.duration);
-toast('Дубль записан: ' + fmt(buf.duration) + ' → ' + run.track.name, 'okk');
+toast('Дубль записан: ' + fmt(buf.duration) + ' → ' + run.track.name
++ (comp > 0 ? ' · сдвиг −' + Math.round(comp*1000) + ' мс' : ''), 'okk');
 }else{
 S.playhead = pos;
 toast('Слишком коротко — дубль отменён');
@@ -1379,6 +1420,7 @@ drawMeter($('mOut'), mState.out, 0, now);
 /* ═══════════ ФЕЙДЕРЫ / ТУМБЛЕРЫ ═══════════ */
 $('rngIn').addEventListener('input', () => { $('valIn').textContent = $('rngIn').value + '%'; applyInputGain(); });
 $('chkMon').addEventListener('change', applyMonitor);
+$('chkMonCut').addEventListener('change', applyMonitor);
 
 /* ═══════════ ЭКСПОРТ ═══════════ */
 function encodeWAV(channels, sampleRate){
