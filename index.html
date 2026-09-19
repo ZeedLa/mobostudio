@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>TAPEDECK AM8 — мобильный рекордер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0d10; --panel:#171b22; --panel2:#10141a; --line:#272e39; --line2:#1d232c;
+  --ink:#e9edf4; --dim:#8b94a3; --faint:#5b6472;
+  --rec:#ff5148; --run:#ffc24b; --ok:#43e07c; --amber:#ffb02e;
+  --vox:#ff8a5c; --inst:#45d0e0;
+  --disp:'Michroma', 'Arial Black', sans-serif;
+  --body:'IBM Plex Sans', system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--body); color:var(--ink); background:var(--bg);
+  min-height:100vh; padding:22px 14px 60px; overflow-x:hidden;
+}
+/* фон: тёплый свет над декой + зерно */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(900px 420px at 50% -80px, rgba(255,176,46,.10), transparent 65%),
+    radial-gradient(700px 500px at 85% 110%, rgba(69,208,224,.06), transparent 60%),
+    radial-gradient(600px 400px at 8% 90%, rgba(255,81,72,.05), transparent 60%);
+}
+body::after{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.rack{position:relative; z-index:1; max-width:960px; margin:0 auto}
+
+/* ── верхняя плата ─────────────────────────────── */
+.plate{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:18px 22px; border:1px solid var(--line); border-radius:14px;
+  background:linear-gradient(180deg,#1b2029,#12151b);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 14px 34px rgba(0,0,0,.45);
+  animation:rise .55s ease both;
+}
+.brand{display:flex; align-items:baseline; gap:12px}
+.brand .pwr{align-self:center}
+.brand h1{font-family:var(--disp); font-size:clamp(19px,4.6vw,27px); font-weight:400; letter-spacing:.14em}
+.brand h1 b{color:var(--amber); font-weight:400}
+.tagline{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); margin-top:6px}
+.ledbar{display:flex; gap:18px}
+.leditem{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:9px; letter-spacing:.18em; color:var(--faint)}
+.led{width:10px;height:10px;border-radius:50%;background:#2a303a;box-shadow:inset 0 1px 2px rgba(0,0,0,.7)}
+.led.ok.on{background:var(--ok); box-shadow:0 0 10px rgba(67,224,124,.8)}
+.led.rec.on{background:var(--rec); box-shadow:0 0 12px rgba(255,81,72,.9)}
+.led.run.on{background:var(--run); box-shadow:0 0 10px rgba(255,194,75,.85)}
+.led.blink{animation:blink .9s steps(2) infinite}
+@keyframes blink{50%{opacity:.25; box-shadow:none}}
+
+/* ── сетка деки ────────────────────────────────── */
+.deck{display:grid; grid-template-columns:340px 1fr; gap:16px; margin-top:16px}
+@media(max-width:880px){.deck{grid-template-columns:1fr}}
+.col{display:flex; flex-direction:column; gap:16px; min-width:0}
+
+.panel{
+  border:1px solid var(--line); border-radius:14px; overflow:hidden;
+  background:linear-gradient(180deg,#181d25,#11151b);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 10px 26px rgba(0,0,0,.38);
+  animation:rise .55s ease both;
+}
+.col .panel:nth-child(1){animation-delay:.05s}.col .panel:nth-child(2){animation-delay:.12s}
+.col .panel:nth-child(3){animation-delay:.19s}.col .panel:nth-child(4){animation-delay:.26s}
+@keyframes rise{from{opacity:0; transform:translateY(14px)}to{opacity:1; transform:none}}
+
+.ptitle{
+  display:flex; align-items:center; gap:10px; padding:11px 16px;
+  border-bottom:1px solid var(--line2);
+  font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--dim);
+  background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);
+}
+.ptitle .dot{width:8px;height:8px;border-radius:50%}
+.ptitle .spacer{flex:1}
+.ptitle .meta{font-family:var(--mono); font-size:10px; letter-spacing:.06em; color:var(--faint); text-transform:none}
+.pbody{padding:14px 16px 16px; display:flex; flex-direction:column; gap:14px}
+
+label.silk{font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim)}
+
+/* ── контролы ──────────────────────────────────── */
+select, .filebtn{
+  width:100%; appearance:none; font-family:var(--body); font-size:13px; color:var(--ink);
+  background:linear-gradient(180deg,#232935,#1a1f28); border:1px solid var(--line);
+  border-radius:9px; padding:10px 12px; cursor:pointer;
+  transition:border-color .2s, box-shadow .2s;
+}
+select:hover,.filebtn:hover{border-color:#3a4350}
+select:focus-visible,.filebtn:focus-visible{outline:none; box-shadow:0 0 0 2px rgba(255,176,46,.35)}
+.selwrap{position:relative}
+.selwrap::after{content:"▾"; position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--faint); pointer-events:none}
+
+.statusline{font-family:var(--mono); font-size:11px; color:var(--faint); min-height:16px}
+.statusline.good{color:var(--ok)}
+
+.meterrow{display:flex; align-items:center; gap:10px}
+.meterrow .mlab{width:34px; font-size:9px; letter-spacing:.14em; color:var(--faint)}
+canvas.meter{width:100%; height:20px; display:block; background:#0a0c0f; border:1px solid var(--line2); border-radius:5px}
+
+.fader{display:flex; align-items:center; gap:10px}
+.fader .val{width:44px; text-align:right; font-family:var(--mono); font-size:11px; color:var(--amber)}
+input[type=range]{flex:1; appearance:none; height:26px; background:transparent; cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:6px; border-radius:3px; background:linear-gradient(180deg,#07090c,#1a2029); box-shadow:inset 0 1px 3px rgba(0,0,0,.8), 0 1px 0 rgba(255,255,255,.05)}
+input[type=range]::-webkit-slider-thumb{appearance:none; width:16px; height:24px; margin-top:-9px; border-radius:4px;
+  background:linear-gradient(180deg,#3d4552,#232932 45%,#171c23 55%,#2c333e); border:1px solid #0a0c0f;
+  box-shadow:0 3px 6px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.18); transition:transform .12s}
+input[type=range]:active::-webkit-slider-thumb{transform:scaleY(1.12)}
+input[type=range]::-moz-range-track{height:6px; border-radius:3px; background:#10141a}
+input[type=range]::-moz-range-thumb{width:16px;height:24px;border-radius:4px;background:#2c333e;border:1px solid #0a0c0f}
+
+/* тумблер */
+.switch{display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none}
+.switch input{display:none}
+.switch .track{width:40px; height:20px; border-radius:20px; background:#0c0f13; border:1px solid var(--line);
+  position:relative; transition:background .25s, box-shadow .25s; flex:none}
+.switch .track::after{content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%;
+  background:linear-gradient(180deg,#4a5261,#2a303a); transition:left .22s cubic-bezier(.5,1.6,.4,1)}
+.switch input:checked + .track{background:#173121; box-shadow:inset 0 0 8px rgba(67,224,124,.35)}
+.switch input:checked + .track::after{left:22px; background:linear-gradient(180deg,#7df0a8,#43e07c)}
+.switch .slab{font-size:12px; color:var(--dim)}
+.switch input:checked ~ .slab{color:var(--ink)}
+
+/* ── транспорт ─────────────────────────────────── */
+.lcd{
+  position:relative; font-family:var(--mono); font-weight:600; font-size:clamp(26px,7vw,34px);
+  letter-spacing:.12em; text-align:center; color:var(--amber);
+  background:#131007; border:1px solid #2c2410; border-radius:9px; padding:14px 8px;
+  text-shadow:0 0 14px rgba(255,176,46,.55); box-shadow:inset 0 3px 14px rgba(0,0,0,.85);
+}
+.lcd::after{content:""; position:absolute; inset:0; border-radius:9px; pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px)}
+.lcd.count{animation:lcdpulse .6s ease infinite}
+@keyframes lcdpulse{50%{opacity:.55}}
+
+.transport{display:flex; align-items:center; gap:18px; justify-content:center; padding-top:4px}
+.tbtn{
+  font-family:var(--body); font-size:12px; letter-spacing:.1em; color:#cfd6e2; cursor:pointer;
+  background:linear-gradient(180deg,#2a303b,#1a1f27); border:1px solid var(--line); border-radius:10px;
+  padding:13px 20px; display:flex; align-items:center; gap:8px;
+  box-shadow:0 4px 10px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.09);
+  transition:transform .1s, box-shadow .15s, border-color .2s;
+}
+.tbtn:hover{border-color:#414c5c}
+.tbtn:active{transform:translateY(2px); box-shadow:0 1px 3px rgba(0,0,0,.5), inset 0 2px 6px rgba(0,0,0,.4)}
+.tbtn:disabled{opacity:.4; cursor:default; transform:none}
+.tbtn .ic{font-size:13px}
+.tbtn.on{border-color:var(--run); color:var(--run); box-shadow:0 0 14px rgba(255,194,75,.25), inset 0 1px 0 rgba(255,255,255,.09)}
+
+.btn-rec{
+  width:78px; height:78px; border-radius:50%; border:2px solid #59191a; cursor:pointer; flex:none;
+  background:radial-gradient(circle at 34% 28%, #ff827a, #d92f28 58%, #8e1713);
+  box-shadow:0 8px 20px rgba(0,0,0,.55), 0 0 0 5px #14171d, 0 0 0 6px var(--line), inset 0 2px 4px rgba(255,255,255,.35);
+  display:flex; align-items:center; justify-content:center; color:#fff;
+  font-family:var(--disp); font-size:11px; letter-spacing:.2em; text-shadow:0 1px 3px rgba(0,0,0,.6);
+  transition:transform .1s, box-shadow .2s;
+}
+.btn-rec:active{transform:scale(.96)}
+.btn-rec.armed{animation:recglow 1s ease infinite}
+@keyframes recglow{50%{box-shadow:0 8px 20px rgba(0,0,0,.55), 0 0 0 5px #14171d, 0 0 0 6px var(--line), 0 0 34px rgba(255,81,72,.8), inset 0 2px 4px rgba(255,255,255,.35)}}
+
+/* ── дорожки ───────────────────────────────────── */
+.scope{background:#0a0c0f; border:1px solid var(--line2); border-radius:9px; overflow:hidden;
+  transition:box-shadow .3s}
+.scope.live{box-shadow:0 0 18px rgba(255,138,92,.14)}
+.scope.live.cool{box-shadow:0 0 18px rgba(69,208,224,.14)}
+canvas.wave{width:100%; height:96px; display:block}
+.chanrow{display:flex; align-items:center; gap:12px}
+.chanrow .fader{flex:1}
+.mute{
+  width:36px; height:30px; border-radius:7px; border:1px solid var(--line); cursor:pointer; flex:none;
+  background:linear-gradient(180deg,#232935,#171c24); color:var(--faint);
+  font-family:var(--mono); font-size:12px; transition:all .18s;
+}
+.mute.muted{color:var(--rec); border-color:#5a2624; box-shadow:inset 0 0 10px rgba(255,81,72,.3)}
+.badge{font-family:var(--mono); font-size:10px; color:var(--faint); letter-spacing:.05em}
+.badge.has{color:var(--ok)}
+.tinybtn{
+  font-size:11px; color:var(--dim); background:none; border:1px solid var(--line2); border-radius:7px;
+  padding:5px 10px; cursor:pointer; transition:all .18s;
+}
+.tinybtn:hover{color:var(--ink); border-color:var(--line)}
+.filebtn{display:flex; align-items:center; justify-content:center; gap:9px; text-align:center}
+.filebtn .slot{width:26px; height:9px; border-radius:3px; background:#05070a; box-shadow:inset 0 1px 3px #000; border:1px solid #2c333e}
+
+/* ── экспорт ───────────────────────────────────── */
+.expgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+@media(max-width:430px){.expgrid{grid-template-columns:1fr}}
+.xbtn{
+  font-family:var(--body); font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;
+  border:1px solid var(--line); border-radius:10px; padding:13px 12px;
+  background:linear-gradient(180deg,#232935,#181d25); display:flex; flex-direction:column; gap:3px; align-items:flex-start;
+  transition:transform .1s, border-color .2s, box-shadow .2s;
+}
+.xbtn small{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:var(--faint); font-weight:500}
+.xbtn:hover{border-color:#465364; box-shadow:0 4px 14px rgba(0,0,0,.35)}
+.xbtn:active{transform:translateY(1px)}
+.xbtn:disabled{opacity:.38; cursor:default}
+.xbtn.warm small{color:var(--amber)}
+
+/* ── справка ───────────────────────────────────── */
+details.help{
+  margin-top:16px; border:1px solid var(--line); border-radius:14px; background:var(--panel2);
+  animation:rise .55s .3s ease both;
+}
+details.help summary{
+  cursor:pointer; padding:14px 18px; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--dim);
+  list-style:none; display:flex; justify-content:space-between; align-items:center;
+}
+details.help summary::after{content:"+"; color:var(--amber); font-size:16px; transition:transform .25s}
+details.help[open] summary::after{transform:rotate(45deg)}
+.helpbody{padding:0 18px 18px; font-size:13px; line-height:1.65; color:#b7bfcc}
+.helpbody b{color:var(--ink)}
+.helpbody li{margin:7px 0 7px 18px}
+.tip{
+  margin-top:12px; padding:12px 14px; border-left:3px solid var(--amber); border-radius:0 9px 9px 0;
+  background:rgba(255,176,46,.06); color:#e8d9b8; font-size:12.5px;
+}
+
+/* ── тосты ─────────────────────────────────────── */
+#toasts{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:50;
+  display:flex; flex-direction:column; gap:8px; width:min(92vw,420px)}
+.toast{
+  background:#1d232d; border:1px solid #333d4b; border-radius:10px; padding:11px 15px;
+  font-size:13px; color:var(--ink); box-shadow:0 12px 30px rgba(0,0,0,.5);
+  animation:toastin .3s cubic-bezier(.3,1.4,.5,1) both;
+}
+.toast.err{border-color:#5a2624; background:#251618}
+.toast.okk{border-color:#1e4a2e; background:#132016}
+@keyframes toastin{from{opacity:0; transform:translateY(16px) scale(.96)}to{opacity:1; transform:none}}
+.toast.out{opacity:0; transform:translateY(8px); transition:all .3s}
+</style>
+</head>
+<body>
+<div class="rack">
+
+  <!-- верхняя панель -->
+  <header class="plate">
+    <div>
+      <div class="brand">
+        <span class="led ok on pwr"></span>
+        <h1>TAPEDECK <b>AM8</b></h1>
+      </div>
+      <div class="tagline">USB-C рекордер · голос + инструментал</div>
+    </div>
+    <div class="ledbar">
+      <div class="leditem"><span class="led ok" id="ledUsb"></span>USB</div>
+      <div class="leditem"><span class="led rec" id="ledRec"></span>REC</div>
+      <div class="leditem"><span class="led run" id="ledRun"></span>RUN</div>
+    </div>
+  </header>
+
+  <main class="deck">
+    <!-- левая колонка: вход + транспорт -->
+    <div class="col">
+
+      <section class="panel">
+        <div class="ptitle"><span class="dot" style="background:var(--ok)"></span>Вход · микрофон</div>
+        <div class="pbody">
+          <div>
+            <label class="silk" for="selDevice">Источник</label>
+            <div class="selwrap">
+              <select id="selDevice"><option>Микрофон не подключён</option></select>
+            </div>
+          </div>
+          <div class="statusline" id="statLine">Нажмите кнопку ниже и разрешите доступ</div>
+          <button class="tbtn" id="btnConnect" style="justify-content:center"><span class="ic">🔌</span> Подключить микрофон</button>
+
+          <div class="meterrow"><span class="mlab">IN</span><canvas class="meter" id="mIn"></canvas></div>
+          <div class="meterrow"><span class="mlab">OUT</span><canvas class="meter" id="mOut"></canvas></div>
+
+          <div>
+            <label class="silk">Уровень входа</label>
+            <div class="fader">
+              <input type="range" id="rngIn" min="0" max="150" value="100">
+              <span class="val" id="valIn">100%</span>
+            </div>
+          </div>
+
+          <label class="switch">
+            <input type="checkbox" id="chkMon" checked>
+            <span class="track"></span>
+            <span class="slab">Мониторинг в наушники (через телефон)</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="ptitle"><span class="dot" style="background:var(--run)"></span>Транспорт</div>
+        <div class="pbody">
+          <div class="lcd" id="lcd">00:00.0</div>
+          <div class="transport">
+            <button class="tbtn" id="btnPlay"><span class="ic">▶</span> PLAY</button>
+            <button class="btn-rec" id="btnRec">REC</button>
+            <button class="tbtn" id="btnStop" disabled><span class="ic">⏹</span> STOP</button>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="chkCount">
+            <span class="track"></span>
+            <span class="slab">Счёт 3-2-1 перед записью</span>
+          </label>
+        </div>
+      </section>
+    </div>
+
+    <!-- правая колонка: дорожки + экспорт -->
+    <div class="col">
+
+      <section class="panel">
+        <div class="ptitle">
+          <span class="dot" style="background:var(--vox)"></span>Дорожка A · голос
+          <span class="spacer"></span><span class="meta" id="metaVox">нет записи</span>
+        </div>
+        <div class="pbody">
+          <div class="scope" id="scopeVox"><canvas class="wave" id="waveVox"></canvas></div>
+          <div class="chanrow">
+            <div class="fader">
+              <input type="range" id="rngVox" min="0" max="150" value="100">
+              <span class="val" id="valVox">100%</span>
+            </div>
+            <button class="mute" id="muteVox" title="Заглушить голос">M</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="ptitle">
+          <span class="dot" style="background:var(--inst)"></span>Дорожка B · инструментал
+          <span class="spacer"></span><span class="meta" id="metaInstr">файл не загружен</span>
+          <button class="tinybtn" id="btnClearInstr" hidden>✕ убрать</button>
+        </div>
+        <div class="pbody">
+          <label class="filebtn" for="fileInstr">
+            <span class="slot"></span><span id="fileInstrLabel">Загрузить минус (любой аудиофайл)</span>
+          </label>
+          <input type="file" id="fileInstr" accept="audio/*" hidden>
+          <div class="scope cool" id="scopeInstr"><canvas class="wave" id="waveInstr"></canvas></div>
+          <div class="chanrow">
+            <div class="fader">
+              <input type="range" id="rngInstr" min="0" max="150" value="100">
+              <span class="val" id="valInstr">100%</span>
+            </div>
+            <button class="mute" id="muteInstr" title="Заглушить минус">M</button>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="chkLoop">
+            <span class="track"></span>
+            <span class="slab">Зациклить инструментал</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="ptitle"><span class="dot" style="background:var(--amber)"></span>Экспорт</div>
+        <div class="pbody">
+          <div class="expgrid">
+            <button class="xbtn warm" id="btnWavVox">Скачать голос · WAV<small>PCM 16-BIT · БЕЗ СЖАТИЯ</small></button>
+            <button class="xbtn" id="btnWavMix">Скачать микс · WAV<small>ГОЛОС + МИНУС · 16-BIT</small></button>
+            <button class="xbtn" id="btnMp3Mix">Скачать микс · MP3<small>192 KBPS · НУЖЕН ИНТЕРНЕТ</small></button>
+            <button class="xbtn" id="btnShare">Поделиться дублем 📤<small>ЕСЛИ ПОДДЕРЖИВАЕТ ТЕЛЕФОН</small></button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <details class="help">
+    <summary>Как подключить FIFINE AM8 к телефону</summary>
+    <div class="helpbody">
+      <ul>
+        <li>Вставьте комплектный <b>кабель USB-C</b> микрофона прямо в телефон (для micro-USB нужен OTG-переходник).</li>
+        <li>Откройте эту страницу в <b>Chrome (Android)</b> или Safari (iPhone) и нажмите «Подключить микрофон» — разрешите доступ.</li>
+        <li>В списке «Источник» выберите устройство <b>FIFINE / USB Audio Device</b>.</li>
+        <li>Загрузите минус в дорожку B, наденьте наушники и жмите красную кнопку.</li>
+      </ul>
+      <div class="tip">💡 <b>Совет по задержке:</b> воткните наушники в разъём 3,5 мм <b>на самом AM8</b> и регулируйте звук его ручкой — вы получите мониторинг без задержки. Тогда тумблер «Мониторинг в наушники» выше выключите, чтобы голос не двоился. Программный мониторинг удобен, если наушники подключены к телефону.</div>
+    </div>
+  </details>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ═══════════ СОСТОЯНИЕ ═══════════ */
+const S = {
+  ctx:null, stream:null, micSource:null,
+  inputGain:null, monitorGain:null, masterGain:null, vocalGain:null, instrGain:null,
+  analyserIn:null, analyserMaster:null,
+  recorder:null, recorderKind:null,
+  recording:false, playing:false,
+  recChunks:[], recSamples:null, recDuration:0, vocalBuffer:null,
+  instrBuf:null, instrSrc:null, vocalSrc:null,
+  startAt:0, stopTimer:null, wakeLock:null, busy:false, deviceId:null
+};
+
+/* ═══════════ УТИЛИТЫ ═══════════ */
+function toast(msg, cls){
+  const t = document.createElement('div');
+  t.className = 'toast' + (cls ? ' '+cls : '');
+  t.textContent = msg;
+  $('toasts').appendChild(t);
+  setTimeout(()=>{ t.classList.add('out'); setTimeout(()=>t.remove(), 350); }, 3600);
+}
+function fmt(t){
+  if(!isFinite(t) || t < 0) t = 0;
+  const m = Math.floor(t/60), s = Math.floor(t%60), d = Math.floor((t*10)%10);
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+d;
+}
+function stamp(){
+  const d = new Date();
+  return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')
+       +'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+}
+function download(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+function concat(chunks){
+  let n = 0; chunks.forEach(c => n += c.length);
+  const out = new Float32Array(n); let o = 0;
+  chunks.forEach(c => { out.set(c, o); o += c.length; });
+  return out;
+}
+
+/* ═══════════ AUDIO CONTEXT + ГРАФ ═══════════ */
+async function ensureCtx(){
+  if(!S.ctx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    S.ctx = new AC({ latencyHint:'interactive' });
+
+    S.masterGain  = S.ctx.createGain();
+    S.analyserMaster = S.ctx.createAnalyser();
+    S.analyserMaster.fftSize = 2048;
+    S.masterGain.connect(S.analyserMaster);
+    S.analyserMaster.connect(S.ctx.destination);
+
+    S.inputGain   = S.ctx.createGain();
+    S.monitorGain = S.ctx.createGain();
+    S.vocalGain   = S.ctx.createGain();
+    S.instrGain   = S.ctx.createGain();
+    S.analyserIn  = S.ctx.createAnalyser();
+    S.analyserIn.fftSize = 2048;
+
+    S.inputGain.connect(S.monitorGain);  S.monitorGain.connect(S.masterGain);
+    S.inputGain.connect(S.analyserIn);   // анализатор — тупиковый, звук не отдаёт
+    S.vocalGain.connect(S.masterGain);
+    S.instrGain.connect(S.masterGain);
+    applyGains(); applyMonitor();
+  }
+  if(S.ctx.state === 'suspended') await S.ctx.resume();
+}
+function applyGains(){
+  if(!S.ctx) return;
+  S.inputGain.gain.value = $('rngIn').value/100;
+  S.vocalGain.gain.value = $('muteVox').classList.contains('muted') ? 0 : $('rngVox').value/100;
+  S.instrGain.gain.value = $('muteInstr').classList.contains('muted') ? 0 : $('rngInstr').value/100;
+}
+function applyMonitor(){
+  if(!S.monitorGain) return;
+  S.monitorGain.gain.setTargetAtTime($('chkMon').checked ? 1 : 0, S.ctx.currentTime, .03);
+}
+
+/* ═══════════ РЕКОРДЕР (AudioWorklet + запасной вариант) ═══════════ */
+const WORKLET_SRC = `
+class AM8Rec extends AudioWorkletProcessor{
+  constructor(){ super(); this.mode='idle'; this.at=0; this.chunks=[]; this.pending=0;
+    this.port.onmessage = e => { const d = e.data;
+      if(d.cmd==='start'){ this.chunks=[]; this.pending=0; this.at=d.at; this.mode='arm'; }
+      if(d.cmd==='stop'){ this.mode='stop'; } };
+  }
+  process(inputs){
+    const ch = inputs[0] && inputs[0][0];
+    if(this.mode==='arm' && currentTime >= this.at) this.mode='rec';
+    if(this.mode==='rec' && ch){
+      const c = new Float32Array(ch.length); c.set(ch);
+      this.chunks.push(c); this.pending += ch.length;
+      if(this.pending >= 131072){
+        this.port.postMessage({chunk:this.chunks}, this.chunks.map(x=>x.buffer));
+        this.chunks=[]; this.pending=0;
+      }
+    }
+    if(this.mode==='stop'){
+      if(this.chunks.length) this.port.postMessage({chunk:this.chunks}, this.chunks.map(x=>x.buffer));
+      this.chunks=[]; this.mode='idle'; this.port.postMessage({done:true});
+    }
+    return true;
+  }
+}
+registerProcessor('am8-rec', AM8Rec);`;
+
+async function initRecorder(){
+  if(S.recorder) return;
+  try{
+    const url = URL.createObjectURL(new Blob([WORKLET_SRC], {type:'application/javascript'}));
+    await S.ctx.audioWorklet.addModule(url);
+    const node = new AudioWorkletNode(S.ctx, 'am8-rec',
+      {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1]});
+    const sink = S.ctx.createGain(); sink.gain.value = 0;   // тишина, чтобы не дублировать мониторинг
+    node.connect(sink); sink.connect(S.ctx.destination);
+    let chunks = [], resolver = null;
+    node.port.onmessage = e => {
+      const d = e.data;
+      if(d.chunk) chunks.push(...d.chunk);
+      if(d.done && resolver){ const r = resolver; resolver = null; r(concat(chunks)); chunks = []; }
+    };
+    S.recorder = {
+      connect(src){ src.connect(node); },
+      start(at){ chunks = []; node.port.postMessage({cmd:'start', at}); },
+      stop(){ return new Promise(res => { resolver = res; node.port.postMessage({cmd:'stop'}); }); }
+    };
+    S.recorderKind = 'worklet';
+  }catch(err){
+    // запасной путь: ScriptProcessor (старые браузеры / ограничения file://)
+    const sp = S.ctx.createScriptProcessor(4096, 1, 1);
+    const sink = S.ctx.createGain(); sink.gain.value = 0;
+    sp.connect(sink); sink.connect(S.ctx.destination);
+    let rec = false, chunks = [];
+    sp.onaudioprocess = e => {
+      const out = e.outputBuffer.getChannelData(0); out.fill(0);
+      if(!rec) return;
+      const i = e.inputBuffer.getChannelData(0);
+      const c = new Float32Array(i.length); c.set(i); chunks.push(c);
+    };
+    S.recorder = {
+      connect(src){ src.connect(sp); },
+      start(){ chunks = []; rec = true; },
+      stop(){ rec = false; return Promise.resolve(concat(chunks)); }
+    };
+    S.recorderKind = 'script';
+  }
+}
+
+/* ═══════════ МИКРОФОН ═══════════ */
+async function setupMic(deviceId){
+  await ensureCtx();
+  if(S.stream) S.stream.getTracks().forEach(t => t.stop());
+
+  const pure = { audio:{ channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
+  if(deviceId) pure.audio.deviceId = { exact:deviceId };
+  try{
+    S.stream = await navigator.mediaDevices.getUserMedia(pure);
+  }catch(e1){
+    try{ S.stream = await navigator.mediaDevices.getUserMedia({audio: deviceId ? {deviceId:{exact:deviceId}} : true}); }
+    catch(e2){
+      const msg = e2.name === 'NotAllowedError'
+        ? 'Доступ запрещён — разрешите микрофон в настройках браузера'
+        : 'Микрофон не найден. Проверьте кабель USB-C и подключение';
+      toast(msg, 'err'); throw e2;
+    }
+  }
+  S.micSource = S.ctx.createMediaStreamSource(S.stream);
+  S.micSource.connect(S.inputGain);
+  await initRecorder();
+  S.recorder.connect(S.inputGain);
+
+  const name = (S.stream.getAudioTracks()[0] && S.stream.getAudioTracks()[0].label) || 'микрофон';
+  const lat = (S.ctx.baseLatency || 0) + (S.ctx.outputLatency || 0);
+  const stat = $('statLine');
+  stat.textContent = name + ' · ' + (S.ctx.sampleRate/1000).toFixed(1) + ' кГц'
+                   + (lat ? ' · задержка ≈ ' + Math.round(lat*1000) + ' мс' : '');
+  stat.className = 'statusline' + (/fifine/i.test(name) ? ' good' : '');
+  $('ledUsb').classList.add('on');
+  if(/fifine/i.test(name)) toast('FIFINE AM8 определён ✓', 'okk');
+  await refreshDevices(deviceId);
+}
+
+async function refreshDevices(selectId){
+  try{
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devs.filter(d => d.kind === 'audioinput');
+    const sel = $('selDevice'); sel.innerHTML = '';
+    if(!inputs.length){ sel.innerHTML = '<option>Устройства не найдены</option>'; return; }
+    inputs.forEach((d, i) => {
+      const o = document.createElement('option');
+      o.value = d.deviceId;
+      o.textContent = d.label || ('Микрофон ' + (i+1));
+      if(d.deviceId === selectId || (!selectId && /fifine/i.test(d.label))) o.selected = true;
+      sel.appendChild(o);
+    });
+    S.deviceId = sel.value;
+  }catch(e){ /* не критично */ }
+}
+
+$('btnConnect').addEventListener('click', async () => {
+  try{ await setupMic(S.deviceId); toast('Микрофон подключён', 'okk'); }catch(e){}
+});
+$('selDevice').addEventListener('change', async e => {
+  try{ await setupMic(e.target.value); }catch(err){}
+});
+if(navigator.mediaDevices && navigator.mediaDevices.addEventListener)
+  navigator.mediaDevices.addEventListener('devicechange', () => refreshDevices(S.deviceId));
+
+/* ═══════════ ИНСТРУМЕНТАЛ ═══════════ */
+$('fileInstr').addEventListener('change', async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    await ensureCtx();
+    const buf = await f.arrayBuffer();
+    S.instrBuf = await S.ctx.decodeAudioData(buf);
+    $('fileInstrLabel').textContent = f.name;
+    $('metaInstr').textContent = fmt(S.instrBuf.duration) + ' · ' + (S.instrBuf.sampleRate/1000).toFixed(1)+' кГц';
+    $('btnClearInstr').hidden = false;
+    peaksInstr = buildPeaks(S.instrBuf.getChannelData(0), $('waveInstr'));
+    drawWave($('waveInstr'), peaksInstr, getComputedStyle(document.documentElement).getPropertyValue('--inst').trim(), -1, 0);
+    toast('Минус загружен: ' + f.name, 'okk');
+  }catch(err){ toast('Не удалось декодировать файл', 'err'); }
+  e.target.value = '';
+});
+$('btnClearInstr').addEventListener('click', () => {
+  S.instrBuf = null; peaksInstr = null;
+  $('fileInstrLabel').textContent = 'Загрузить минус (любой аудиофайл)';
+  $('metaInstr').textContent = 'файл не загружен';
+  $('btnClearInstr').hidden = true;
+  drawWave($('waveInstr'), null, '', -1, 0, 'загрузите аудиофайл');
+});
+$('chkLoop').addEventListener('change', () => { if(S.instrSrc) S.instrSrc.loop = $('chkLoop').checked; });
+
+/* ═══════════ ТРАНСПОРТ ═══════════ */
+function scheduleBeeps(t0){
+  const freqs = [880, 880, 880, 1320];
+  freqs.forEach((f, i) => {
+    const o = S.ctx.createOscillator(), g = S.ctx.createGain();
+    o.frequency.value = f; o.connect(g); g.connect(S.masterGain);
+    const t = t0 + i*0.6;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.16, t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+0.09);
+    o.start(t); o.stop(t+0.1);
+  });
+}
+function startInstr(at){
+  const src = S.ctx.createBufferSource();
+  src.buffer = S.instrBuf; src.loop = $('chkLoop').checked;
+  src.connect(S.instrGain); src.start(at);
+  src.onended = () => { if(S.recording || S.playing) stopAll(); };
+  S.instrSrc = src;
+}
+
+async function onRec(){
+  if(S.recording || S.playing){ stopAll(); return; }
+  try{
+    await ensureCtx();
+    if(!S.stream) await setupMic(S.deviceId);
+  }catch(e){ return; }
+
+  S.recording = true;
+  updateLeds();
+  try{ S.wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+
+  const count = $('chkCount').checked;
+  const t0 = S.ctx.currentTime + 0.15;
+  const startAt = t0 + (count ? 1.8 : 0);
+  if(count){ scheduleBeeps(t0); $('lcd').classList.add('count'); }
+  if(S.instrBuf) startInstr(startAt);
+  S.recorder.start(startAt);
+  S.startAt = startAt;
+  $('scopeVox').classList.add('live');
+  toast('Идёт запись…', 'okk');
+}
+
+async function onPlay(){
+  if(S.recording) return;
+  if(!S.recSamples && !S.instrBuf){ toast('Сначала запишите голос или загрузите минус'); return; }
+  await ensureCtx();
+  const t = S.ctx.currentTime + 0.05;
+  S.startAt = t; S.playing = true; updateLeds();
+
+  if(S.recSamples){
+    if(!S.vocalBuffer){
+      S.vocalBuffer = S.ctx.createBuffer(1, S.recSamples.length, S.ctx.sampleRate);
+      S.vocalBuffer.copyToChannel(S.recSamples, 0);
+    }
+    const src = S.ctx.createBufferSource();
+    src.buffer = S.vocalBuffer; src.connect(S.vocalGain); src.start(t);
+    S.vocalSrc = src;
+  }
+  if(S.instrBuf) startInstr(t);
+
+  const loop = $('chkLoop').checked;
+  const dur = Math.max(S.recDuration, (S.instrBuf && !loop) ? S.instrBuf.duration : 0);
+  if(isFinite(dur) && dur > 0)
+    S.stopTimer = setTimeout(() => { if(S.playing) stopAll(); }, (dur + 0.35)*1000);
+  $('scopeVox').classList.add('live'); $('scopeInstr').classList.add('live');
+}
+
+async function stopAll(){
+  const wasRec = S.recording;
+  S.recording = false; S.playing = false;
+  clearTimeout(S.stopTimer);
+  $('lcd').classList.remove('count');
+
+  [S.instrSrc, S.vocalSrc].forEach(s => { if(s){ try{ s.onended = null; s.stop(); }catch(e){} } });
+  S.instrSrc = S.vocalSrc = null;
+
+  if(wasRec && S.recorder){
+    const samples = await S.recorder.stop();
+    if(samples.length < S.ctx.sampleRate * 0.08){
+      toast('Запись отменена (слишком коротко)');
+    }else{
+      S.recSamples = samples; S.vocalBuffer = null;
+      S.recDuration = samples.length / S.ctx.sampleRate;
+      peaksVox = buildPeaks(samples, $('waveVox'));
+      drawWave($('waveVox'), peaksVox, VOX, -1, 0);
+      $('metaVox').textContent = 'дубль · ' + fmt(S.recDuration);
+      $('metaVox').classList.add('has');
+      toast('Дубль записан: ' + fmt(S.recDuration), 'okk');
+    }
+  }
+  if(S.wakeLock){ try{ S.wakeLock.release(); }catch(e){} S.wakeLock = null; }
+  $('scopeVox').classList.remove('live'); $('scopeInstr').classList.remove('live');
+  updateLeds();
+}
+
+function updateLeds(){
+  $('ledRec').classList.toggle('on', S.recording);
+  $('ledRec').classList.toggle('blink', S.recording);
+  $('ledRun').classList.toggle('on', S.playing);
+  $('btnRec').classList.toggle('armed', S.recording);
+  $('btnPlay').classList.toggle('on', S.playing);
+  $('btnStop').disabled = !(S.recording || S.playing);
+}
+$('btnRec').addEventListener('click', onRec);
+$('btnPlay').addEventListener('click', onPlay);
+$('btnStop').addEventListener('click', stopAll);
+
+document.addEventListener('visibilitychange', async () => {
+  if(!document.hidden && S.recording && !S.wakeLock){
+    try{ S.wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+  }
+});
+
+/* ═══════════ МЕТРЫ И ОСЦИЛЛОГРАММЫ ═══════════ */
+const VOX = '#ff8a5c', INST = '#45d0e0';
+let peaksVox = null, peaksInstr = null;
+
+function fitCanvas(cv){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if(cv.width !== w*dpr || cv.height !== h*dpr){ cv.width = w*dpr; cv.height = h*dpr; }
+  return dpr;
+}
+function buildPeaks(data, cv){
+  const dpr = fitCanvas(cv);
+  const n = Math.max(cv.clientWidth, 60);
+  const peaks = new Float32Array(n*2);
+  const stride = Math.max(1, Math.floor(data.length / n));
+  for(let i = 0; i < n; i++){
+    let mn = 0, mx = 0;
+    const s = i*stride, e = Math.min(data.length, s + stride);
+    for(let j = s; j < e; j += 4){ const v = data[j]; if(v < mn) mn = v; if(v > mx) mx = v; }
+    peaks[i*2] = mn; peaks[i*2+1] = mx;
+  }
+  return peaks;
+}
+function drawWave(cv, peaks, color, pos, dur, placeholder){
+  const dpr = fitCanvas(cv), g = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  // сетка
+  g.strokeStyle = 'rgba(255,255,255,.045)'; g.lineWidth = 1;
+  for(let x = 0; x < W; x += 46*dpr){ g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+  g.strokeStyle = 'rgba(255,255,255,.10)';
+  g.beginPath(); g.moveTo(0, H/2); g.lineTo(W, H/2); g.stroke();
+
+  if(!peaks){
+    g.fillStyle = 'rgba(255,255,255,.22)';
+    g.font = (11*dpr) + 'px "IBM Plex Mono", monospace';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(placeholder || 'пусто', W/2, H/2);
+    return;
+  }
+  const n = peaks.length/2, bw = W/n;
+  g.fillStyle = color; g.globalAlpha = .92;
+  for(let i = 0; i < n; i++){
+    const mn = peaks[i*2], mx = peaks[i*2+1];
+    const y1 = (1 - mx) * H/2, y2 = (1 - mn) * H/2;
+    g.fillRect(i*bw, y1, Math.max(bw*0.72, 1), Math.max(y2 - y1, 1.2*dpr));
+  }
+  g.globalAlpha = 1;
+  if(pos >= 0 && dur > 0){
+    const x = Math.min(pos/dur, 1) * W;
+    g.fillStyle = 'rgba(255,255,255,.9)';
+    g.shadowColor = color; g.shadowBlur = 8*dpr;
+    g.fillRect(x - dpr, 0, 2*dpr, H);
+    g.shadowBlur = 0;
+  }
+}
+
+const mState = { in:{v:0,p:0,t:0}, out:{v:0,p:0,t:0} };
+const tdBuf = new Float32Array(2048);
+function readLevel(analyser){
+  if(!analyser) return 0;
+  analyser.getFloatTimeDomainData(tdBuf);
+  let pk = 0;
+  for(let i = 0; i < tdBuf.length; i += 2){ const a = Math.abs(tdBuf[i]); if(a > pk) pk = a; }
+  return Math.min(1, pk * 1.35);
+}
+function drawMeter(cv, st, level, now){
+  st.v = Math.max(level, st.v * 0.88);
+  if(level >= st.p){ st.p = level; st.t = now; } else if(now - st.t > 650) st.p *= 0.93;
+  const dpr = fitCanvas(cv), g = cv.getContext('2d');
+  const W = cv.width, H = cv.height, N = 34, gap = 2*dpr;
+  const sw = (W - gap*(N-1)) / N;
+  g.clearRect(0, 0, W, H);
+  const lit = Math.round(Math.pow(st.v, 0.7) * N);
+  const pkIdx = Math.round(Math.pow(st.p, 0.7) * N);
+  for(let i = 0; i < N; i++){
+    const x = i*(sw + gap);
+    const frac = i/N;
+    const col = frac > .86 ? '#ff5148' : frac > .62 ? '#ffc24b' : '#43e07c';
+    if(i < lit){ g.fillStyle = col; g.globalAlpha = 1; }
+    else { g.fillStyle = col; g.globalAlpha = .12; }
+    g.fillRect(x, H*0.18, sw, H*0.64);
+  }
+  g.globalAlpha = 1;
+  if(pkIdx > 0 && pkIdx <= N){
+    g.fillStyle = '#fff';
+    g.fillRect((pkIdx-1)*(sw+gap), H*0.1, sw, H*0.8);
+  }
+}
+
+function tick(){
+  requestAnimationFrame(tick);
+  const now = performance.now();
+  if(S.ctx){
+    drawMeter($('mIn'),  mState.in,  readLevel(S.analyserIn),    now);
+    drawMeter($('mOut'), mState.out, readLevel(S.analyserMaster), now);
+
+    if(S.recording || S.playing){
+      const pos = Math.max(0, S.ctx.currentTime - S.startAt);
+      $('lcd').textContent = fmt(pos);
+      if(peaksVox) drawWave($('waveVox'), peaksVox, VOX, pos, S.recDuration || pos);
+      if(peaksInstr) drawWave($('waveInstr'), peaksInstr, INST, pos, S.instrBuf.duration);
+    }
+  }else{
+    drawMeter($('mIn'), mState.in, 0, now);
+    drawMeter($('mOut'), mState.out, 0, now);
+  }
+}
+drawWave($('waveVox'), null, '', -1, 0, 'нажмите REC');
+drawWave($('waveInstr'), null, '', -1, 0, 'загрузите аудиофайл');
+requestAnimationFrame(tick);
+window.addEventListener('resize', () => {
+  if(S.recSamples) peaksVox = buildPeaks(S.recSamples, $('waveVox'));
+  if(S.instrBuf) peaksInstr = buildPeaks(S.instrBuf.getChannelData(0), $('waveInstr'));
+  if(peaksVox) drawWave($('waveVox'), peaksVox, VOX, -1, 0);
+  if(peaksInstr) drawWave($('waveInstr'), peaksInstr, INST, -1, 0);
+});
+
+/* ═══════════ ФЕЙДЕРЫ / ТУМБЛЕРЫ ═══════════ */
+[['rngIn','valIn'], ['rngVox','valVox'], ['rngInstr','valInstr']].forEach(([r, v]) => {
+  $(r).addEventListener('input', () => { $(v).textContent = $(r).value + '%'; applyGains(); });
+});
+$('chkMon').addEventListener('change', applyMonitor);
+$('muteVox').addEventListener('click', () => { $('muteVox').classList.toggle('muted'); applyGains(); });
+$('muteInstr').addEventListener('click', () => { $('muteInstr').classList.toggle('muted'); applyGains(); });
+
+/* ═══════════ ЭКСПОРТ ═══════════ */
+function encodeWAV(channels, sampleRate){
+  const nCh = channels.length, len = channels[0].length;
+  const bytes = 44 + len * nCh * 2;
+  const ab = new ArrayBuffer(bytes), v = new DataView(ab);
+  const wstr = (o, s) => { for(let i = 0; i < s.length; i++) v.setUint8(o+i, s.charCodeAt(i)); };
+  wstr(0,'RIFF'); v.setUint32(4, bytes-8, true); wstr(8,'WAVE');
+  wstr(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,nCh,true);
+  v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*nCh*2,true);
+  v.setUint16(32,nCh*2,true); v.setUint16(34,16,true);
+  wstr(36,'data'); v.setUint32(40,len*nCh*2,true);
+  let o = 44;
+  for(let i = 0; i < len; i++)
+    for(let c = 0; c < nCh; c++){
+      let x = Math.max(-1, Math.min(1, channels[c][i]));
+      v.setInt16(o, x < 0 ? x*0x8000 : x*0x7FFF, true); o += 2;
+    }
+  return new Blob([ab], {type:'audio/wav'});
+}
+
+async function renderMix(){
+  const sr = S.ctx.sampleRate;
+  const vLen = S.recSamples ? S.recSamples.length : 0;
+  const iLen = S.instrBuf ? S.instrBuf.length : 0;
+  const len = Math.max(vLen, iLen);
+  const off = new OfflineAudioContext(2, len, sr);
+  if(vLen){
+    const b = off.createBuffer(1, vLen, sr); b.copyToChannel(S.recSamples, 0);
+    const s = off.createBufferSource(); s.buffer = b;
+    const g = off.createGain(); g.gain.value = S.vocalGain.gain.value;
+    s.connect(g); g.connect(off.destination); s.start(0);
+  }
+  if(iLen){
+    const s = off.createBufferSource(); s.buffer = S.instrBuf;
+    const g = off.createGain(); g.gain.value = S.instrGain.gain.value;
+    s.connect(g); g.connect(off.destination); s.start(0);
+  }
+  return off.startRendering();
+}
+function loadLame(){
+  return new Promise((res, rej) => {
+    if(window.lamejs) return res();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js';
+    s.onload = () => window.lamejs ? res() : rej(new Error('lamejs'));
+    s.onerror = () => rej(new Error('нет сети'));
+    document.head.appendChild(s);
+  });
+}
+function encodeMP3(buf){
+  const sr = buf.sampleRate, L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L;
+  const toI16 = f => { const o = new Int16Array(f.length);
+    for(let i = 0; i < f.length; i++){ const x = Math.max(-1, Math.min(1, f[i])); o[i] = x < 0 ? x*0x8000 : x*0x7FFF; } return o; };
+  const l = toI16(L), r = toI16(R);
+  const enc = new lamejs.Mp3Encoder(2, sr, 192), block = 1152, parts = [];
+  for(let i = 0; i < l.length; i += block){
+    const d = enc.encodeBuffer(l.subarray(i, i+block), r.subarray(i, i+block));
+    if(d.length) parts.push(d);
+  }
+  const end = enc.flush(); if(end.length) parts.push(end);
+  return new Blob(parts, {type:'audio/mpeg'});
+}
+
+$('btnWavVox').addEventListener('click', async () => {
+  if(!S.recSamples) return toast('Сначала запишите голос');
+  download(encodeWAV([S.recSamples], S.ctx.sampleRate), 'am8_vocal_' + stamp() + '.wav');
+  toast('WAV с голосом сохранён', 'okk');
+});
+$('btnWavMix').addEventListener('click', async () => {
+  if(S.busy) return; if(!S.recSamples && !S.instrBuf) return toast('Нечего экспортировать');
+  S.busy = true; toast('Сводим микс…');
+  try{
+    await ensureCtx();
+    const buf = await renderMix();
+    download(encodeWAV([buf.getChannelData(0), buf.getChannelData(1)], buf.sampleRate), 'am8_mix_' + stamp() + '.wav');
+    toast('Микс WAV сохранён', 'okk');
+  }catch(e){ toast('Ошибка экспорта', 'err'); }
+  S.busy = false;
+});
+$('btnMp3Mix').addEventListener('click', async () => {
+  if(S.busy) return; if(!S.recSamples && !S.instrBuf) return toast('Нечего экспортировать');
+  S.busy = true; toast('Кодируем MP3…');
+  try{
+    await ensureCtx(); await loadLame();
+    const buf = await renderMix();
+    download(encodeMP3(buf), 'am8_mix_' + stamp() + '.mp3');
+    toast('MP3 сохранён', 'okk');
+  }catch(e){ toast('Для MP3 нужен интернет (кодек грузится из сети)', 'err'); }
+  S.busy = false;
+});
+$('btnShare').addEventListener('click', async () => {
+  if(!S.recSamples) return toast('Сначала запишите голос');
+  const blob = encodeWAV([S.recSamples], S.ctx.sampleRate);
+  const file = new File([blob], 'am8_vocal_' + stamp() + '.wav', {type:'audio/wav'});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:'Дубль FIFINE AM8'}); }catch(e){}
+  }else toast('Шеринг файлами тут недоступен — скачайте WAV', 'err');
+});
+})();
+</script>
+</body>
+</html>
