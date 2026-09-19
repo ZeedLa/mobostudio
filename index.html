@@ -165,7 +165,7 @@ font-family:var(--mono);font-size:12px;padding:5px 6px}
 background:linear-gradient(180deg,#2a303b,#1a1f27);color:#cfd6e2;font-size:14px;line-height:1}
 .zbtn:hover{border-color:#414c5c}
 #zoomVal{font-family:var(--mono);font-size:10.5px;color:var(--amber);width:40px;text-align:center}
-.hintline{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--faint);text-align:center}
+.hintline{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--faint);text-align:center;line-height:1.7}
 /* ── таймлайн ──────────────────────────────────── */
 .instrbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .instrbar .filebtn{width:auto;flex:0 1 auto;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:9px}
@@ -182,7 +182,8 @@ padding:5px 10px; cursor:pointer; transition:all .18s; white-space:nowrap;
 .toolsrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 #clipInfo{font-family:var(--mono);font-size:10.5px;color:var(--faint);flex:1;min-width:140px;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tlgrid{display:flex; border:1px solid var(--line2); border-radius:10px; overflow:hidden; background:#0a0c0f}
+.tlgrid{display:flex; border:1px solid var(--line2); border-radius:10px; overflow:hidden; background:#0a0c0f;
+touch-action:none; user-select:none; -webkit-user-select:none}
 .tlleft{flex:none; width:var(--headw); border-right:1px solid var(--line2); background:#0d1015}
 .tlcorner{height:26px; display:flex; align-items:center; padding:0 10px; font-size:8.5px;
 letter-spacing:.22em; color:var(--faint); border-bottom:1px solid var(--line2)}
@@ -360,7 +361,7 @@ animation:toastin .3s cubic-bezier(.3,1.4,.5,1) both;
 <span id="zoomVal">48</span>
 <button class="zbtn" id="zoomIn">+</button>
 </div>
-<div class="hintline">SPACE — play/stop · R — запись · DEL — удалить клип</div>
+<div class="hintline">1 палец на клипе — двигать клип · 1 палец на фоне — двигать таймлайн · 2 пальца — зум и прокрутка<br>линейка — плейхед · на ПК: Ctrl + колесо = зум</div>
 </div>
 </section>
 </div>
@@ -383,7 +384,7 @@ animation:toastin .3s cubic-bezier(.3,1.4,.5,1) both;
 <button class="tinybtn" id="btnDelClip" disabled>✕ клип</button>
 <button class="tinybtn addtrk" id="btnAddTrack">+ дорожка</button>
 </div>
-<div class="tlgrid">
+<div class="tlgrid" id="tlGrid">
 <div class="tlleft">
 <div class="tlcorner">TRACK</div>
 <div id="tlHeads"></div>
@@ -428,6 +429,7 @@ animation:toastin .3s cubic-bezier(.3,1.4,.5,1) both;
 <li>Нажмите <b>●</b> на вокальной дорожке (она «вооружена»), поставьте плейхед кликом по линейке и жмите <b>REC</b> — клип запишется ровно с этой позиции.</li>
 <li><b>Овердаб:</b> добавьте дорожку кнопкой «+ дорожка», вооружите её и жмите REC во время звучания предыдущих записей — так собираются гармонии и бэки.</li>
 <li><b>Монтаж:</b> тяните клип пальцем по таймлайну, обрезайте за левый/правый край, выделяйте клип и режьте его по плейхеду (<b>✂</b>) или удаляйте (<b>✕</b>).</li>
+<li><b>Навигация:</b> тяните пустое место одним пальцем, чтобы листать таймлайн; двумя пальцами — щипок для зума и быстрая прокрутка. Кнопки «−/+» меняют масштаб ступенями.</li>
 <li>Громкость и Mute — в голове каждой дорожки. Экспорт сводит всё с учётом позиций, громкостей и мьютов.</li>
 </ul>
 <div class="tip">💡 <b>Совет по задержке:</b> воткните наушники в разъём 3,5 мм <b>на самом AM8</b> и регулируйте звук его ручкой — мониторинг будет без задержки. Тумблер «Мониторинг в наушники» при этом выключите, чтобы голос не двоился. Программный мониторинг удобен, если наушники подключены к телефону.</div>
@@ -443,20 +445,23 @@ const $ = id => document.getElementById(id);
 
 /* ═══════════ СОСТОЯНИЕ ═══════════ */
 const S = {
-  ctx:null, stream:null, micSource:null,
-  inputGain:null, monitorGain:null, masterGain:null,
-  analyserIn:null, analyserMaster:null,
-  recorder:null, recorderKind:null, recConnected:false,
-  tracks:[], armedId:null, sel:null,
-  playhead:0, run:null, playing:false, recording:false,
-  sources:[], instrLiveSrc:null,
-  pps:48, lastProjDur:0, laneEls:{},
-  liveEl:null, liveLast:0,
-  wakeLock:null, deviceId:null, busy:false,
-  uid:0, vCounter:0
+ctx:null, stream:null, micSource:null,
+inputGain:null, monitorGain:null, masterGain:null,
+analyserIn:null, analyserMaster:null,
+recorder:null, recorderKind:null, recConnected:false,
+tracks:[], armedId:null, sel:null,
+playhead:0, run:null, playing:false, recording:false,
+sources:[], instrLiveSrc:null,
+pps:48, lastProjDur:0, laneEls:{},
+liveEl:null, liveLast:0, liveStart:null,
+wakeLock:null, deviceId:null, busy:false,
+uid:0, vCounter:0
 };
 const PALETTE = ['#ff8a5c','#43e07c','#ffc24b','#b58cff','#ff6fa5','#7fd1ff','#ffd7a1','#45d0e0'];
 const ZOOMS = [16,24,36,48,72,104]; let zi = 3;
+
+/* состояние жестов таймлайна */
+const G = { pts:new Map(), mode:null, lastMid:null, lastDist:0, anchorSec:0, zooming:false };
 
 function uid(){ return ++S.uid; }
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
@@ -464,10 +469,10 @@ function instrTrack(){ return S.tracks[0]; }
 function vocalTracks(){ return S.tracks.filter(t=>!t.instr); }
 function trackById(id){ return S.tracks.find(t=>t.id===id); }
 function addVocalTrack(){
-  const t = { id:'v'+uid(), name:'V'+(++S.vCounter), color:PALETTE[(S.vCounter-1)%PALETTE.length],
-              gain:1, muted:false, clips:[], node:null };
-  S.tracks.push(t); S.armedId = t.id;
-  return t;
+const t = { id:'v'+uid(), name:'V'+(++S.vCounter), color:PALETTE[(S.vCounter-1)%PALETTE.length],
+gain:1, muted:false, clips:[], node:null };
+S.tracks.push(t); S.armedId = t.id;
+return t;
 }
 /* стартовые дорожки */
 S.tracks.push({ id:'inst', name:'INST', instr:true, loop:false, color:'#45d0e0', gain:1, muted:false, clips:[], node:null });
@@ -475,724 +480,829 @@ addVocalTrack();
 
 /* ═══════════ УТИЛИТЫ ═══════════ */
 function toast(msg, cls){
-  const t = document.createElement('div');
-  t.className = 'toast' + (cls ? ' '+cls : '');
-  t.textContent = msg;
-  $('toasts').appendChild(t);
-  setTimeout(()=>{ t.classList.add('out'); setTimeout(()=>t.remove(), 350); }, 3600);
+const t = document.createElement('div');
+t.className = 'toast' + (cls ? ' '+cls : '');
+t.textContent = msg;
+$('toasts').appendChild(t);
+setTimeout(()=>{ t.classList.add('out'); setTimeout(()=>t.remove(), 350); }, 3600);
 }
 function fmt(t){
-  if(!isFinite(t) || t < 0) t = 0;
-  const m = Math.floor(t/60), s = Math.floor(t%60), d = Math.floor((t*10)%10);
-  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+d;
+if(!isFinite(t) || t < 0) t = 0;
+const m = Math.floor(t/60), s = Math.floor(t%60), d = Math.floor((t*10)%10);
+return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+d;
 }
 function fmtR(s){ return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
 function stamp(){
-  const d = new Date();
-  return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')
-  +'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+const d = new Date();
+return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')
++'-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
 }
 function download(blob, name){
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = name;
-  document.body.appendChild(a); a.click();
-  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob); a.download = name;
+document.body.appendChild(a); a.click();
+setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
 }
 function hexA(h,a){
-  const r=parseInt(h.slice(1,3),16), g=parseInt(h.slice(3,5),16), b=parseInt(h.slice(5,7),16);
-  return 'rgba('+r+','+g+','+b+','+a+')';
+const r=parseInt(h.slice(1,3),16), g=parseInt(h.slice(3,5),16), b=parseInt(h.slice(5,7),16);
+return 'rgba('+r+','+g+','+b+','+a+')';
 }
 async function wakeOn(){ try{ S.wakeLock = await navigator.wakeLock.request('screen'); }catch(e){} }
 
 /* ═══════════ AUDIO CONTEXT + ГРАФ ═══════════ */
 async function ensureCtx(){
-  if(!S.ctx){
-    const AC = window.AudioContext || window.webkitAudioContext;
-    S.ctx = new AC({ latencyHint:'interactive' });
-    S.masterGain = S.ctx.createGain();
-    S.analyserMaster = S.ctx.createAnalyser(); S.analyserMaster.fftSize = 2048;
-    S.masterGain.connect(S.analyserMaster);
-    S.analyserMaster.connect(S.ctx.destination);
-    S.inputGain = S.ctx.createGain();
-    S.monitorGain = S.ctx.createGain();
-    S.analyserIn = S.ctx.createAnalyser(); S.analyserIn.fftSize = 2048;
-    S.inputGain.connect(S.monitorGain); S.monitorGain.connect(S.masterGain);
-    S.inputGain.connect(S.analyserIn);
-    applyInputGain(); applyMonitor(); applyTrackGains();
-  }
-  if(S.ctx.state === 'suspended') await S.ctx.resume();
+if(!S.ctx){
+const AC = window.AudioContext || window.webkitAudioContext;
+S.ctx = new AC({ latencyHint:'interactive' });
+S.masterGain = S.ctx.createGain();
+S.analyserMaster = S.ctx.createAnalyser(); S.analyserMaster.fftSize = 2048;
+S.masterGain.connect(S.analyserMaster);
+S.analyserMaster.connect(S.ctx.destination);
+S.inputGain = S.ctx.createGain();
+S.monitorGain = S.ctx.createGain();
+S.analyserIn = S.ctx.createAnalyser(); S.analyserIn.fftSize = 2048;
+S.inputGain.connect(S.monitorGain); S.monitorGain.connect(S.masterGain);
+S.inputGain.connect(S.analyserIn);
+applyInputGain(); applyMonitor(); applyTrackGains();
+}
+if(S.ctx.state === 'suspended') await S.ctx.resume();
 }
 function trackNode(t){
-  if(!t.node){ t.node = S.ctx.createGain(); t.node.connect(S.masterGain); }
-  return t.node;
+if(!t.node){ t.node = S.ctx.createGain(); t.node.connect(S.masterGain); }
+return t.node;
 }
 function applyInputGain(){ if(S.inputGain) S.inputGain.gain.value = $('rngIn').value/100; }
 function applyMonitor(){
-  if(!S.monitorGain) return;
-  S.monitorGain.gain.setTargetAtTime($('chkMon').checked ? 1 : 0, S.ctx.currentTime, .03);
+if(!S.monitorGain) return;
+S.monitorGain.gain.setTargetAtTime($('chkMon').checked ? 1 : 0, S.ctx.currentTime, .03);
 }
 function applyTrackGains(){
-  if(!S.ctx) return;
-  for(const t of S.tracks)
-    if(t.node) t.node.gain.setTargetAtTime(t.muted ? 0 : t.gain, S.ctx.currentTime, .02);
+if(!S.ctx) return;
+for(const t of S.tracks)
+if(t.node) t.node.gain.setTargetAtTime(t.muted ? 0 : t.gain, S.ctx.currentTime, .02);
 }
 
 /* ═══════════ РЕКОРДЕР (AudioWorklet + запасной вариант) ═══════════ */
 const WORKLET_SRC = `
 class AM8Rec extends AudioWorkletProcessor{
-  constructor(){ super(); this.mode='idle'; this.at=0; this.chunks=[]; this.pending=0;
-    this.port.onmessage = e => { const d = e.data;
-      if(d.cmd==='start'){ this.chunks=[]; this.pending=0; this.at=d.at; this.mode='arm'; }
-      if(d.cmd==='stop'){ this.mode='stop'; } };
-  }
-  process(inputs){
-    const ch = inputs[0] && inputs[0][0];
-    if(this.mode==='arm' && currentTime >= this.at) this.mode='rec';
-    if(this.mode==='rec' && ch){
-      const c = new Float32Array(ch.length); c.set(ch);
-      this.chunks.push(c); this.pending += ch.length;
-      if(this.pending >= 8192){
-        this.port.postMessage({chunk:this.chunks}, this.chunks.map(x=>x.buffer));
-        this.chunks=[]; this.pending=0;
-      }
-    }
-    if(this.mode==='stop'){
-      if(this.chunks.length) this.port.postMessage({chunk:this.chunks}, this.chunks.map(x=>x.buffer));
-      this.chunks=[]; this.mode='idle'; this.port.postMessage({done:true});
-    }
-    return true;
-  }
+constructor(){ super(); this.mode='idle'; this.at=0; this.chunks=[]; this.pending=0;
+this.port.onmessage = e => { const d = e.data;
+if(d.cmd==='start'){ this.chunks=[]; this.pending=0; this.at=d.at; this.mode='arm'; }
+if(d.cmd==='stop'){ this.mode='stop'; } };
+}
+process(inputs){
+const ch = inputs[0] && inputs[0][0];
+if(this.mode==='arm' && currentTime >= this.at) this.mode='rec';
+if(this.mode==='rec' && ch){
+const c = new Float32Array(ch.length); c.set(ch);
+this.chunks.push(c); this.pending += ch.length;
+if(this.pending >= 8192){
+this.port.postMessage({chunk:this.chunks}, this.chunks.map(x=>x.buffer));
+this.chunks=[]; this.pending=0;
+}
+}
+if(this.mode==='stop'){
+if(this.chunks.length) this.port.postMessage({chunk:this.chunks}, this.chunks.map(x=>x.buffer));
+this.chunks=[]; this.mode='idle'; this.port.postMessage({done:true});
+}
+return true;
+}
 }
 registerProcessor('am8-rec', AM8Rec);`;
 
 async function initRecorder(){
-  if(S.recorder) return;
-  /* плоский накопитель сэмплов — для живой волны и финального клипа */
-  let flat = new Float32Array(0), flen = 0;
-  const push = a => {
-    if(!a || !a.length) return;
-    if(flen + a.length > flat.length){
-      let n = flat.length ? flat.length*2 : 65536;
-      while(n < flen + a.length) n *= 2;
-      const nf = new Float32Array(n); nf.set(flat.subarray(0,flen)); flat = nf;
-    }
-    flat.set(a, flen); flen += a.length;
-  };
-  try{
-    const url = URL.createObjectURL(new Blob([WORKLET_SRC], {type:'application/javascript'}));
-    await S.ctx.audioWorklet.addModule(url);
-    const node = new AudioWorkletNode(S.ctx, 'am8-rec',
-      {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1]});
-    const sink = S.ctx.createGain(); sink.gain.value = 0;
-    node.connect(sink); sink.connect(S.ctx.destination);
-    let resolver = null;
-    node.port.onmessage = e => {
-      const d = e.data;
-      if(d.chunk){ for(const c of d.chunk) push(c); }
-      if(d.done && resolver){ const r = resolver; resolver = null; r(flat.slice(0, flen)); }
-    };
-    S.recorder = {
-      kind:'worklet',
-      connect(src){ src.connect(node); },
-      start(at){ flen = 0; node.port.postMessage({cmd:'start', at}); },
-      stop(){ return new Promise(res => { resolver = res; node.port.postMessage({cmd:'stop'}); }); },
-      total(){ return flen; }, flatData(){ return flat; }
-    };
-    S.recorderKind = 'worklet';
-  }catch(err){
-    const sp = S.ctx.createScriptProcessor(4096, 1, 1);
-    const sink = S.ctx.createGain(); sink.gain.value = 0;
-    sp.connect(sink); sink.connect(S.ctx.destination);
-    let rec = false;
-    sp.onaudioprocess = e => {
-      const out = e.outputBuffer.getChannelData(0); out.fill(0);
-      if(!rec) return;
-      push(new Float32Array(e.inputBuffer.getChannelData(0)));
-    };
-    S.recorder = {
-      kind:'script',
-      connect(src){ src.connect(sp); },
-      start(){ flen = 0; rec = true; },
-      stop(){ rec = false; return Promise.resolve(flat.slice(0, flen)); },
-      total(){ return flen; }, flatData(){ return flat; }
-    };
-    S.recorderKind = 'script';
-  }
-  $('recEngine').textContent = 'ENGINE: ' + (S.recorderKind === 'worklet' ? 'WORKLET' : 'SCRIPT');
+if(S.recorder) return;
+/* плоский накопитель сэмплов — для живой волны и финального клипа */
+let flat = new Float32Array(0), flen = 0;
+const push = a => {
+if(!a || !a.length) return;
+if(flen + a.length > flat.length){
+let n = flat.length ? flat.length*2 : 65536;
+while(n < flen + a.length) n *= 2;
+const nf = new Float32Array(n); nf.set(flat.subarray(0,flen)); flat = nf;
+}
+flat.set(a, flen); flen += a.length;
+};
+try{
+const url = URL.createObjectURL(new Blob([WORKLET_SRC], {type:'application/javascript'}));
+await S.ctx.audioWorklet.addModule(url);
+const node = new AudioWorkletNode(S.ctx, 'am8-rec',
+{numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1]});
+const sink = S.ctx.createGain(); sink.gain.value = 0;
+node.connect(sink); sink.connect(S.ctx.destination);
+let resolver = null;
+node.port.onmessage = e => {
+const d = e.data;
+if(d.chunk){ for(const c of d.chunk) push(c); }
+if(d.done && resolver){ const r = resolver; resolver = null; r(flat.slice(0, flen)); }
+};
+S.recorder = {
+kind:'worklet',
+connect(src){ src.connect(node); },
+start(at){ flen = 0; node.port.postMessage({cmd:'start', at}); },
+stop(){ return new Promise(res => { resolver = res; node.port.postMessage({cmd:'stop'}); }); },
+total(){ return flen; }, flatData(){ return flat; }
+};
+S.recorderKind = 'worklet';
+}catch(err){
+const sp = S.ctx.createScriptProcessor(4096, 1, 1);
+const sink = S.ctx.createGain(); sink.gain.value = 0;
+sp.connect(sink); sink.connect(S.ctx.destination);
+let rec = false;
+sp.onaudioprocess = e => {
+const out = e.outputBuffer.getChannelData(0); out.fill(0);
+if(!rec) return;
+push(new Float32Array(e.inputBuffer.getChannelData(0)));
+};
+S.recorder = {
+kind:'script',
+connect(src){ src.connect(sp); },
+start(){ flen = 0; rec = true; },
+stop(){ rec = false; return Promise.resolve(flat.slice(0, flen)); },
+total(){ return flen; }, flatData(){ return flat; }
+};
+S.recorderKind = 'script';
+}
+$('recEngine').textContent = 'ENGINE: ' + (S.recorderKind === 'worklet' ? 'WORKLET' : 'SCRIPT');
 }
 
 /* ═══════════ МИКРОФОН ═══════════ */
 async function setupMic(deviceId){
-  await ensureCtx();
-  if(S.stream) S.stream.getTracks().forEach(t => t.stop());
-  const pure = { audio:{ channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
-  if(deviceId) pure.audio.deviceId = { exact:deviceId };
-  try{
-    S.stream = await navigator.mediaDevices.getUserMedia(pure);
-  }catch(e1){
-    try{ S.stream = await navigator.mediaDevices.getUserMedia({audio: deviceId ? {deviceId:{exact:deviceId}} : true}); }
-    catch(e2){
-      const msg = e2.name === 'NotAllowedError'
-        ? 'Доступ запрещён — разрешите микрофон в настройках браузера'
-        : 'Микрофон не найден. Проверьте кабель USB-C и подключение';
-      toast(msg, 'err'); throw e2;
-    }
-  }
-  S.micSource = S.ctx.createMediaStreamSource(S.stream);
-  S.micSource.connect(S.inputGain);
-  await initRecorder();
-  if(!S.recConnected){ S.recorder.connect(S.inputGain); S.recConnected = true; }
-  const name = (S.stream.getAudioTracks()[0] && S.stream.getAudioTracks()[0].label) || 'микрофон';
-  const lat = (S.ctx.baseLatency || 0) + (S.ctx.outputLatency || 0);
-  const stat = $('statLine');
-  stat.textContent = name + ' · ' + (S.ctx.sampleRate/1000).toFixed(1) + ' кГц'
-    + (lat ? ' · задержка ≈ ' + Math.round(lat*1000) + ' мс' : '');
-  stat.className = 'statusline' + (/fifine/i.test(name) ? ' good' : '');
-  $('ledUsb').classList.add('on');
-  if(/fifine/i.test(name)) toast('FIFINE AM8 определён ✓', 'okk');
-  await refreshDevices(deviceId);
+await ensureCtx();
+if(S.stream) S.stream.getTracks().forEach(t => t.stop());
+const pure = { audio:{ channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
+if(deviceId) pure.audio.deviceId = { exact:deviceId };
+try{
+S.stream = await navigator.mediaDevices.getUserMedia(pure);
+}catch(e1){
+try{ S.stream = await navigator.mediaDevices.getUserMedia({audio: deviceId ? {deviceId:{exact:deviceId}} : true}); }
+catch(e2){
+const msg = e2.name === 'NotAllowedError'
+? 'Доступ запрещён — разрешите микрофон в настройках браузера'
+: 'Микрофон не найден. Проверьте кабель USB-C и подключение';
+toast(msg, 'err'); throw e2;
+}
+}
+S.micSource = S.ctx.createMediaStreamSource(S.stream);
+S.micSource.connect(S.inputGain);
+await initRecorder();
+if(!S.recConnected){ S.recorder.connect(S.inputGain); S.recConnected = true; }
+const name = (S.stream.getAudioTracks()[0] && S.stream.getAudioTracks()[0].label) || 'микрофон';
+const lat = (S.ctx.baseLatency || 0) + (S.ctx.outputLatency || 0);
+const stat = $('statLine');
+stat.textContent = name + ' · ' + (S.ctx.sampleRate/1000).toFixed(1) + ' кГц'
++ (lat ? ' · задержка ≈ ' + Math.round(lat*1000) + ' мс' : '');
+stat.className = 'statusline' + (/fifine/i.test(name) ? ' good' : '');
+$('ledUsb').classList.add('on');
+if(/fifine/i.test(name)) toast('FIFINE AM8 определён ✓', 'okk');
+await refreshDevices(deviceId);
 }
 async function refreshDevices(selectId){
-  try{
-    const devs = await navigator.mediaDevices.enumerateDevices();
-    const inputs = devs.filter(d => d.kind === 'audioinput');
-    const sel = $('selDevice'); sel.innerHTML = '';
-    if(!inputs.length){ sel.innerHTML = '<option>Устройства не найдены</option>'; return; }
-    inputs.forEach((d, i) => {
-      const o = document.createElement('option');
-      o.value = d.deviceId;
-      o.textContent = d.label || ('Микрофон ' + (i+1));
-      if(d.deviceId === selectId || (!selectId && /fifine/i.test(d.label))) o.selected = true;
-      sel.appendChild(o);
-    });
-    S.deviceId = sel.value;
-  }catch(e){ /* не критично */ }
+try{
+const devs = await navigator.mediaDevices.enumerateDevices();
+const inputs = devs.filter(d => d.kind === 'audioinput');
+const sel = $('selDevice'); sel.innerHTML = '';
+if(!inputs.length){ sel.innerHTML = '<option>Устройства не найдены</option>'; return; }
+inputs.forEach((d, i) => {
+const o = document.createElement('option');
+o.value = d.deviceId;
+o.textContent = d.label || ('Микрофон ' + (i+1));
+if(d.deviceId === selectId || (!selectId && /fifine/i.test(d.label))) o.selected = true;
+sel.appendChild(o);
+});
+S.deviceId = sel.value;
+}catch(e){ /* не критично */ }
 }
 $('btnConnect').addEventListener('click', async () => {
-  try{ await setupMic(S.deviceId); toast('Микрофон подключён', 'okk'); }catch(e){}
+try{ await setupMic(S.deviceId); toast('Микрофон подключён', 'okk'); }catch(e){}
 });
 $('selDevice').addEventListener('change', async e => {
-  try{ await setupMic(e.target.value); }catch(err){}
+try{ await setupMic(e.target.value); }catch(err){}
 });
 if(navigator.mediaDevices && navigator.mediaDevices.addEventListener)
-  navigator.mediaDevices.addEventListener('devicechange', () => refreshDevices(S.deviceId));
+navigator.mediaDevices.addEventListener('devicechange', () => refreshDevices(S.deviceId));
 
 /* ═══════════ ИНСТРУМЕНТАЛ ═══════════ */
 $('fileInstr').addEventListener('change', async e => {
-  const f = e.target.files[0]; if(!f) return;
-  try{
-    await ensureCtx();
-    const buf = await f.arrayBuffer();
-    const ab = await S.ctx.decodeAudioData(buf);
-    const t = instrTrack();
-    t.clips = [{ id:uid(), buffer:ab, offset:0, dur:ab.duration, start:0, name:'минус' }];
-    $('fileInstrLabel').textContent = f.name;
-    $('metaInstr').textContent = fmt(ab.duration) + ' · ' + (ab.sampleRate/1000).toFixed(1) + ' кГц';
-    $('btnClearInstr').hidden = false;
-    rebuildTimeline();
-    toast('Минус загружен: ' + f.name, 'okk');
-  }catch(err){ toast('Не удалось декодировать файл', 'err'); }
-  e.target.value = '';
+const f = e.target.files[0]; if(!f) return;
+try{
+await ensureCtx();
+const buf = await f.arrayBuffer();
+const ab = await S.ctx.decodeAudioData(buf);
+const t = instrTrack();
+t.clips = [{ id:uid(), buffer:ab, offset:0, dur:ab.duration, start:0, name:'минус' }];
+$('fileInstrLabel').textContent = f.name;
+$('metaInstr').textContent = fmt(ab.duration) + ' · ' + (ab.sampleRate/1000).toFixed(1) + ' кГц';
+$('btnClearInstr').hidden = false;
+rebuildTimeline();
+toast('Минус загружен: ' + f.name, 'okk');
+}catch(err){ toast('Не удалось декодировать файл', 'err'); }
+e.target.value = '';
 });
 $('btnClearInstr').addEventListener('click', () => {
-  instrTrack().clips = [];
-  if(S.sel && S.sel.track.instr) S.sel = null;
-  $('fileInstrLabel').textContent = 'Загрузить минус (любой аудиофайл)';
-  $('metaInstr').textContent = 'файл не загружен';
-  $('btnClearInstr').hidden = true;
-  rebuildTimeline(); updateClipTools();
+instrTrack().clips = [];
+if(S.sel && S.sel.track.instr) S.sel = null;
+$('fileInstrLabel').textContent = 'Загрузить минус (любой аудиофайл)';
+$('metaInstr').textContent = 'файл не загружен';
+$('btnClearInstr').hidden = true;
+rebuildTimeline(); updateClipTools();
 });
 
 /* ═══════════ МОДЕЛЬ ПРОЕКТА ═══════════ */
 function projDur(){
-  let end = 24;
-  for(const t of S.tracks) for(const c of t.clips) end = Math.max(end, c.start + c.dur);
-  return end + 12; /* запас под новые клипы */
+let end = 24;
+for(const t of S.tracks) for(const c of t.clips) end = Math.max(end, c.start + c.dur);
+return end + 12; /* запас под новые клипы */
 }
 function maxEnd(){
-  let end = 0;
-  for(const t of S.tracks) for(const c of t.clips) end = Math.max(end, c.start + c.dur);
-  return end;
+let end = 0;
+for(const t of S.tracks) for(const c of t.clips) end = Math.max(end, c.start + c.dur);
+return end;
 }
 function curPos(){
-  if(!S.run || !S.ctx) return S.playhead;
-  const ct = S.ctx.currentTime;
-  if(ct < S.run.t0) return S.run.pos0;
-  return S.run.pos0 + (ct - S.run.t0);
+if(!S.run || !S.ctx) return S.playhead;
+const ct = S.ctx.currentTime;
+if(ct < S.run.t0) return S.run.pos0;
+return S.run.pos0 + (ct - S.run.t0);
 }
 
 /* ═══════════ ЗВУКОВЫЕ ОРИЕНТИРЫ ═══════════ */
 function scheduleBeeps(t0){
-  [880,880,880,1320].forEach((f, i) => {
-    const o = S.ctx.createOscillator(), g = S.ctx.createGain();
-    o.frequency.value = f; o.connect(g); g.connect(S.masterGain);
-    const t = t0 + i*0.6;
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.16, t+0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t+0.09);
-    o.start(t); o.stop(t+0.1);
-  });
+[880,880,880,1320].forEach((f, i) => {
+const o = S.ctx.createOscillator(), g = S.ctx.createGain();
+o.frequency.value = f; o.connect(g); g.connect(S.masterGain);
+const t = t0 + i*0.6;
+g.gain.setValueAtTime(0, t);
+g.gain.linearRampToValueAtTime(0.16, t+0.008);
+g.gain.exponentialRampToValueAtTime(0.0001, t+0.09);
+o.start(t); o.stop(t+0.1);
+});
 }
 let metTimer = null, metNext = 0, metBeat = 0;
 function startMetronome(at, from){
-  if(!$('chkMet').checked) return;
-  const spb = 60 / clamp(parseFloat($('numBpm').value) || 120, 40, 240);
-  metBeat = Math.ceil(from/spb - 1e-6);
-  metNext = at + (metBeat*spb - from);
-  metTimer = setInterval(() => {
-    if(!S.ctx || !S.run){ stopMetronome(); return; }
-    while(metNext < S.ctx.currentTime + 0.15){
-      metClick(metNext, metBeat % 4 === 0);
-      metBeat++; metNext += spb;
-    }
-  }, 40);
+if(!$('chkMet').checked) return;
+const spb = 60 / clamp(parseFloat($('numBpm').value) || 120, 40, 240);
+metBeat = Math.ceil(from/spb - 1e-6);
+metNext = at + (metBeat*spb - from);
+metTimer = setInterval(() => {
+if(!S.ctx || !S.run){ stopMetronome(); return; }
+while(metNext < S.ctx.currentTime + 0.15){
+metClick(metNext, metBeat % 4 === 0);
+metBeat++; metNext += spb;
+}
+}, 40);
 }
 function stopMetronome(){ if(metTimer){ clearInterval(metTimer); metTimer = null; } }
 function metClick(t, acc){
-  const o = S.ctx.createOscillator(), g = S.ctx.createGain();
-  o.frequency.value = acc ? 1568 : 1046;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(acc ? 0.20 : 0.13, t+0.004);
-  g.gain.exponentialRampToValueAtTime(0.0001, t+0.055);
-  o.connect(g); g.connect(S.masterGain);
-  o.start(t); o.stop(t+0.07);
+const o = S.ctx.createOscillator(), g = S.ctx.createGain();
+o.frequency.value = acc ? 1568 : 1046;
+g.gain.setValueAtTime(0.0001, t);
+g.gain.linearRampToValueAtTime(acc ? 0.20 : 0.13, t+0.004);
+g.gain.exponentialRampToValueAtTime(0.0001, t+0.055);
+o.connect(g); g.connect(S.masterGain);
+o.start(t); o.stop(t+0.07);
 }
 
 /* ═══════════ ПЛАНИРОВАНИЕ КЛИПОВ ═══════════ */
 function scheduleClips(at, from){
-  S.sources = [];
-  for(const t of S.tracks){
-    const g = trackNode(t);
-    for(const c of t.clips){
-      if(t.instr && t.loop){
-        const into = from > c.start ? (from - c.start) % c.dur : 0;
-        const when = at + (from > c.start ? 0 : (c.start - from));
-        const src = S.ctx.createBufferSource();
-        src.buffer = c.buffer; src.loop = true;
-        src.loopStart = c.offset; src.loopEnd = c.offset + c.dur;
-        src.connect(g); src.start(when, c.offset + into);
-        S.sources.push(src); S.instrLiveSrc = src;
-      }else{
-        if(c.start + c.dur <= from) continue;
-        const when = at + Math.max(0, c.start - from);
-        const into = Math.max(0, from - c.start);
-        const src = S.ctx.createBufferSource();
-        src.buffer = c.buffer;
-        src.connect(g); src.start(when, c.offset + into, c.dur - into);
-        S.sources.push(src);
-      }
-    }
-  }
+S.sources = [];
+for(const t of S.tracks){
+const g = trackNode(t);
+for(const c of t.clips){
+if(t.instr && t.loop){
+const into = from > c.start ? (from - c.start) % c.dur : 0;
+const when = at + (from > c.start ? 0 : (c.start - from));
+const src = S.ctx.createBufferSource();
+src.buffer = c.buffer; src.loop = true;
+src.loopStart = c.offset; src.loopEnd = c.offset + c.dur;
+src.connect(g); src.start(when, c.offset + into);
+S.sources.push(src); S.instrLiveSrc = src;
+}else{
+if(c.start + c.dur <= from) continue;
+const when = at + Math.max(0, c.start - from);
+const into = Math.max(0, from - c.start);
+const src = S.ctx.createBufferSource();
+src.buffer = c.buffer;
+src.connect(g); src.start(when, c.offset + into, c.dur - into);
+S.sources.push(src);
+}
+}
+}
 }
 function stopSources(){
-  S.sources.forEach(s => { try{ s.onended = null; s.stop(); }catch(e){} });
-  S.sources = []; S.instrLiveSrc = null;
+S.sources.forEach(s => { try{ s.onended = null; s.stop(); }catch(e){} });
+S.sources = []; S.instrLiveSrc = null;
 }
 
 /* ═══════════ ТРАНСПОРТ ═══════════ */
 async function startRun(mode){
-  await ensureCtx();
-  const from = S.playhead;
-  let track = null;
-  if(mode === 'rec'){
-    if(!S.stream) await setupMic(S.deviceId);
-    track = trackById(S.armedId) || vocalTracks()[0];
-    if(!track) return;
-    S.armedId = track.id; rebuildHeads();
-  }
-  const count = (mode === 'rec') && $('chkCount').checked;
-  const now = S.ctx.currentTime;
-  const delay = 0.12, countDur = count ? 1.8 : 0;
-  const at = now + delay + countDur;
-  if(count) scheduleBeeps(now + delay);
-  scheduleClips(at, from);
-  startMetronome(at, from);
-  if(mode === 'rec'){ S.recorder.start(at); beginLive(track, from); }
-  S.run = { mode, t0:at, pos0:from, track };
-  S.playing = true; S.recording = (mode === 'rec');
-  updateLeds(); wakeOn();
-  if(mode === 'rec') toast(count ? 'Счёт… затем запись на ' + track.name : 'Запись на ' + track.name + '…', 'okk');
+await ensureCtx();
+const from = S.playhead;
+let track = null;
+if(mode === 'rec'){
+if(!S.stream) await setupMic(S.deviceId);
+track = trackById(S.armedId) || vocalTracks()[0];
+if(!track) return;
+S.armedId = track.id; rebuildHeads();
+}
+const count = (mode === 'rec') && $('chkCount').checked;
+const now = S.ctx.currentTime;
+const delay = 0.12, countDur = count ? 1.8 : 0;
+const at = now + delay + countDur;
+if(count) scheduleBeeps(now + delay);
+scheduleClips(at, from);
+startMetronome(at, from);
+if(mode === 'rec'){ S.recorder.start(at); beginLive(track, from); }
+S.run = { mode, t0:at, pos0:from, track };
+S.playing = true; S.recording = (mode === 'rec');
+updateLeds(); wakeOn();
+if(mode === 'rec') toast(count ? 'Счёт… затем запись на ' + track.name : 'Запись на ' + track.name + '…', 'okk');
 }
 async function onRec(){
-  if(S.run){ stopRun(); return; }
-  try{ await startRun('rec'); }catch(e){}
+if(S.run){ stopRun(); return; }
+try{ await startRun('rec'); }catch(e){}
 }
 async function onPlay(){
-  if(S.run){ stopRun(); return; }
-  if(!S.tracks.some(t => t.clips.length)){ toast('Загрузите минус или запишите дорожку'); return; }
-  try{ await startRun('play'); }catch(e){}
+if(S.run){ stopRun(); return; }
+if(!S.tracks.some(t => t.clips.length)){ toast('Загрузите минус или запишите дорожку'); return; }
+try{ await startRun('play'); }catch(e){}
 }
 let stopping = false;
 async function stopRun(){
-  if(!S.run || stopping) return;
-  stopping = true;
-  const run = S.run;
-  const pos = curPos();
-  S.run = null; S.playing = false;
-  const wasRec = S.recording; S.recording = false;
-  stopSources(); stopMetronome(); endLive();
-  if(wasRec && S.recorder){
-    const samples = await S.recorder.stop();
-    if(samples.length > S.ctx.sampleRate * 0.08 && run.track){
-      const buf = S.ctx.createBuffer(1, samples.length, S.ctx.sampleRate);
-      buf.copyToChannel(samples, 0);
-      const c = { id:uid(), buffer:buf, offset:0, dur:buf.duration, start:run.pos0,
-                  name:run.track.name + '·дубль ' + (run.track.clips.length + 1) };
-      run.track.clips.push(c);
-      S.playhead = Math.min(projDur(), run.pos0 + buf.duration);
-      toast('Дубль записан: ' + fmt(buf.duration) + ' → ' + run.track.name, 'okk');
-    }else{
-      S.playhead = pos;
-      toast('Слишком коротко — дубль отменён');
-    }
-  }else S.playhead = pos;
-  if(S.wakeLock){ try{ S.wakeLock.release(); }catch(e){} S.wakeLock = null; }
-  updateLeds(); rebuildTimeline(); updateClipTools();
-  stopping = false;
+if(!S.run || stopping) return;
+stopping = true;
+const run = S.run;
+const pos = curPos();
+S.run = null; S.playing = false;
+const wasRec = S.recording; S.recording = false;
+stopSources(); stopMetronome(); endLive();
+if(wasRec && S.recorder){
+const samples = await S.recorder.stop();
+if(samples.length > S.ctx.sampleRate * 0.08 && run.track){
+const buf = S.ctx.createBuffer(1, samples.length, S.ctx.sampleRate);
+buf.copyToChannel(samples, 0);
+const c = { id:uid(), buffer:buf, offset:0, dur:buf.duration, start:run.pos0,
+name:run.track.name + '·дубль ' + (run.track.clips.length + 1) };
+run.track.clips.push(c);
+S.playhead = Math.min(projDur(), run.pos0 + buf.duration);
+toast('Дубль записан: ' + fmt(buf.duration) + ' → ' + run.track.name, 'okk');
+}else{
+S.playhead = pos;
+toast('Слишком коротко — дубль отменён');
+}
+}else S.playhead = pos;
+if(S.wakeLock){ try{ S.wakeLock.release(); }catch(e){} S.wakeLock = null; }
+updateLeds(); rebuildTimeline(); updateClipTools();
+stopping = false;
 }
 function updateLeds(){
-  $('ledRec').classList.toggle('on', S.recording);
-  $('ledRec').classList.toggle('blink', S.recording);
-  $('ledRun').classList.toggle('on', S.playing);
-  $('btnRec').classList.toggle('armed', S.recording);
-  $('btnPlay').classList.toggle('on', S.playing && !S.recording);
-  $('btnStop').disabled = !S.run;
+$('ledRec').classList.toggle('on', S.recording);
+$('ledRec').classList.toggle('blink', S.recording);
+$('ledRun').classList.toggle('on', S.playing);
+$('btnRec').classList.toggle('armed', S.recording);
+$('btnPlay').classList.toggle('on', S.playing && !S.recording);
+$('btnStop').disabled = !S.run;
 }
 $('btnRec').addEventListener('click', onRec);
 $('btnPlay').addEventListener('click', onPlay);
 $('btnStop').addEventListener('click', () => stopRun());
 $('btnToStart').addEventListener('click', () => {
-  if(S.run) return;
-  S.playhead = 0; updatePlayheadEl(0);
-  $('tlScroll').scrollLeft = 0; updateClipTools();
+if(S.run) return;
+S.playhead = 0; updatePlayheadEl(0);
+$('tlScroll').scrollLeft = 0; updateClipTools();
 });
 document.addEventListener('visibilitychange', async () => {
-  if(!document.hidden && S.run && !S.wakeLock) wakeOn();
+if(!document.hidden && S.run && !S.wakeLock) wakeOn();
 });
 document.addEventListener('keydown', e => {
-  const tag = (e.target.tagName || '').toLowerCase();
-  if(tag === 'input' || tag === 'select' || tag === 'textarea') return;
-  if(tag === 'button') e.target.blur();
-  if(e.code === 'Space'){ e.preventDefault(); S.run ? stopRun() : onPlay(); }
-  else if(e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К'){ e.preventDefault(); onRec(); }
-  else if((e.key === 'Delete' || e.key === 'Backspace') && S.sel){ e.preventDefault(); delSelClip(); }
+const tag = (e.target.tagName || '').toLowerCase();
+if(tag === 'input' || tag === 'select' || tag === 'textarea') return;
+if(tag === 'button') e.target.blur();
+if(e.code === 'Space'){ e.preventDefault(); S.run ? stopRun() : onPlay(); }
+else if(e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К'){ e.preventDefault(); onRec(); }
+else if((e.key === 'Delete' || e.key === 'Backspace') && S.sel){ e.preventDefault(); delSelClip(); }
 });
 
 /* ═══════════ ЖИВОЙ КЛИП ВО ВРЕМЯ ЗАПИСИ ═══════════ */
 function beginLive(track, from){
-  const lane = S.laneEls[track.id]; if(!lane) return;
-  const el = document.createElement('div');
-  el.className = 'clip live';
-  el.style.left = (from * S.pps) + 'px';
-  el.style.width = '2px';
-  el.style.background = 'rgba(255,81,72,.10)';
-  const cv = document.createElement('canvas'); cv.className = 'wclip';
-  el.appendChild(cv); lane.appendChild(el);
-  S.liveEl = el; S.liveLast = 0;
+const lane = S.laneEls[track.id]; if(!lane) return;
+const el = document.createElement('div');
+el.className = 'clip live';
+el.style.left = (from * S.pps) + 'px';
+el.style.width = '2px';
+el.style.background = 'rgba(255,81,72,.10)';
+const cv = document.createElement('canvas'); cv.className = 'wclip';
+el.appendChild(cv); lane.appendChild(el);
+S.liveEl = el; S.liveLast = 0; S.liveStart = from;
 }
-function endLive(){ if(S.liveEl){ S.liveEl.remove(); S.liveEl = null; } }
+function endLive(){ if(S.liveEl){ S.liveEl.remove(); S.liveEl = null; } S.liveStart = null; }
 function updateLive(nowMs){
-  if(!S.liveEl || !S.recorder) return;
-  const len = S.recorder.total() / S.ctx.sampleRate;
-  S.liveEl.style.width = Math.max(2, len * S.pps) + 'px';
-  if(nowMs - S.liveLast > 160){
-    S.liveLast = nowMs;
-    const cv = S.liveEl.firstChild;
-    fitCanvas(cv);
-    const total = S.recorder.total();
-    const n = Math.max(2, Math.floor((cv.clientWidth || 10) / 2));
-    const fd = S.recorder.flatData();
-    drawPeaksOn(cv, makePeaks(j => fd[j], total, n), '#ff5148');
-  }
+if(!S.liveEl || !S.recorder) return;
+const len = S.recorder.total() / S.ctx.sampleRate;
+S.liveEl.style.width = Math.max(2, len * S.pps) + 'px';
+if(nowMs - S.liveLast > 160){
+S.liveLast = nowMs;
+const cv = S.liveEl.firstChild;
+fitCanvas(cv);
+const total = S.recorder.total();
+const n = Math.max(2, Math.floor((cv.clientWidth || 10) / 2));
+const fd = S.recorder.flatData();
+drawPeaksOn(cv, makePeaks(j => fd[j], total, n), '#ff5148');
+}
 }
 
 /* ═══════════ ТАЙМЛАЙН: РЕНДЕР ═══════════ */
 function fitCanvas(cv){
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = cv.clientWidth, h = cv.clientHeight;
-  if(w > 0 && h > 0 && (cv.width !== w*dpr || cv.height !== h*dpr)){ cv.width = w*dpr; cv.height = h*dpr; }
-  return dpr;
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+const w = cv.clientWidth, h = cv.clientHeight;
+if(w > 0 && h > 0 && (cv.width !== w*dpr || cv.height !== h*dpr)){ cv.width = w*dpr; cv.height = h*dpr; }
+return dpr;
 }
 function makePeaks(get, total, n){
-  const peaks = new Float32Array(n*2);
-  if(total <= 0) return peaks;
-  const stride = Math.max(1, Math.floor(total / n));
-  const step = Math.max(1, Math.floor(stride / 8));
-  for(let i = 0; i < n; i++){
-    let mn = 0, mx = 0;
-    const s = i*stride, e = Math.min(total, s + stride);
-    for(let j = s; j < e; j += step){
-      const v = get(j);
-      if(v < mn) mn = v; if(v > mx) mx = v;
-    }
-    peaks[i*2] = mn; peaks[i*2+1] = mx;
-  }
-  return peaks;
+const peaks = new Float32Array(n*2);
+if(total <= 0) return peaks;
+const stride = Math.max(1, Math.floor(total / n));
+const step = Math.max(1, Math.floor(stride / 8));
+for(let i = 0; i < n; i++){
+let mn = 0, mx = 0;
+const s = i*stride, e = Math.min(total, s + stride);
+for(let j = s; j < e; j += step){
+const v = get(j);
+if(v < mn) mn = v; if(v > mx) mx = v;
+}
+peaks[i*2] = mn; peaks[i*2+1] = mx;
+}
+return peaks;
 }
 function drawPeaksOn(cv, peaks, color){
-  const g = cv.getContext('2d'), W = cv.width, H = cv.height;
-  if(!W || !H) return;
-  g.clearRect(0, 0, W, H);
-  g.fillStyle = 'rgba(255,255,255,.09)'; g.fillRect(0, H/2, W, 1);
-  const n = peaks.length/2, bw = W/n;
-  g.fillStyle = color; g.globalAlpha = .9;
-  for(let i = 0; i < n; i++){
-    const mn = peaks[i*2], mx = peaks[i*2+1];
-    const y1 = (1 - mx) * H/2, y2 = (1 - mn) * H/2;
-    g.fillRect(i*bw, y1, Math.max(bw*0.7, 1), Math.max(y2 - y1, 1));
-  }
-  g.globalAlpha = 1;
+const g = cv.getContext('2d'), W = cv.width, H = cv.height;
+if(!W || !H) return;
+g.clearRect(0, 0, W, H);
+g.fillStyle = 'rgba(255,255,255,.09)'; g.fillRect(0, H/2, W, 1);
+const n = peaks.length/2, bw = W/n;
+g.fillStyle = color; g.globalAlpha = .9;
+for(let i = 0; i < n; i++){
+const mn = peaks[i*2], mx = peaks[i*2+1];
+const y1 = (1 - mx) * H/2, y2 = (1 - mn) * H/2;
+g.fillRect(i*bw, y1, Math.max(bw*0.7, 1), Math.max(y2 - y1, 1));
+}
+g.globalAlpha = 1;
 }
 function drawClipCanvas(el, t, c){
-  const cv = el.querySelector('canvas'); if(!cv) return;
-  fitCanvas(cv);
-  const wCss = cv.clientWidth || parseFloat(el.style.width) || 10;
-  const n = Math.max(2, Math.floor(wCss / 2));
-  const data = c.buffer.getChannelData(0);
-  const s = Math.floor(c.offset * c.buffer.sampleRate);
-  const e = Math.min(data.length, Math.floor((c.offset + c.dur) * c.buffer.sampleRate));
-  drawPeaksOn(cv, makePeaks(j => data[s + j], Math.max(0, e - s), n), t.color);
+const cv = el.querySelector('canvas'); if(!cv) return;
+fitCanvas(cv);
+const wCss = cv.clientWidth || parseFloat(el.style.width) || 10;
+const n = Math.max(2, Math.floor(wCss / 2));
+const data = c.buffer.getChannelData(0);
+const s = Math.floor(c.offset * c.buffer.sampleRate);
+const e = Math.min(data.length, Math.floor((c.offset + c.dur) * c.buffer.sampleRate));
+drawPeaksOn(cv, makePeaks(j => data[s + j], Math.max(0, e - s), n), t.color);
 }
 function drawRulerCanvas(W){
-  const cv = $('elRuler');
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  cv.style.width = W + 'px'; cv.style.height = '26px';
-  cv.width = W*dpr; cv.height = 26*dpr;
-  const g = cv.getContext('2d');
-  g.clearRect(0, 0, cv.width, cv.height);
-  g.fillStyle = 'rgba(255,255,255,.14)';
-  g.fillRect(0, cv.height - dpr, cv.width, dpr);
-  g.font = (9*dpr) + 'px "IBM Plex Mono", monospace';
-  g.textBaseline = 'bottom';
-  const secs = Math.ceil(W / S.pps);
-  for(let s = 0; s <= secs; s++){
-    const x = s * S.pps * dpr;
-    if(s % 5 === 0){
-      g.fillStyle = 'rgba(255,255,255,.35)';
-      g.fillRect(x, cv.height - 10*dpr, dpr, 9*dpr);
-      g.fillStyle = 'rgba(233,237,244,.55)';
-      g.fillText(fmtR(s), x + 3*dpr, cv.height - 11*dpr);
-    }else{
-      g.fillStyle = 'rgba(255,255,255,.14)';
-      g.fillRect(x, cv.height - 5*dpr, dpr, 4*dpr);
-    }
-  }
+const cv = $('elRuler');
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+cv.style.width = W + 'px'; cv.style.height = '26px';
+cv.width = W*dpr; cv.height = 26*dpr;
+const g = cv.getContext('2d');
+g.clearRect(0, 0, cv.width, cv.height);
+g.fillStyle = 'rgba(255,255,255,.14)';
+g.fillRect(0, cv.height - dpr, cv.width, dpr);
+g.font = (9*dpr) + 'px "IBM Plex Mono", monospace';
+g.textBaseline = 'bottom';
+const secs = Math.ceil(W / S.pps);
+for(let s = 0; s <= secs; s++){
+const x = s * S.pps * dpr;
+if(s % 5 === 0){
+g.fillStyle = 'rgba(255,255,255,.35)';
+g.fillRect(x, cv.height - 10*dpr, dpr, 9*dpr);
+g.fillStyle = 'rgba(233,237,244,.55)';
+g.fillText(fmtR(s), x + 3*dpr, cv.height - 11*dpr);
+}else{
+g.fillStyle = 'rgba(255,255,255,.14)';
+g.fillRect(x, cv.height - 5*dpr, dpr, 4*dpr);
+}
+}
 }
 function makeClipEl(t, c){
-  const el = document.createElement('div');
-  el.className = 'clip' + (S.sel && S.sel.clip === c ? ' sel' : '');
-  el.style.left = (c.start * S.pps) + 'px';
-  el.style.width = Math.max(8, c.dur * S.pps) + 'px';
-  el.style.background = hexA(t.color, 0.13);
-  el.style.borderColor = hexA(t.color, 0.55);
-  const cv = document.createElement('canvas'); cv.className = 'wclip';
-  el.appendChild(cv);
-  if(!t.instr){
-    const hl = document.createElement('div'); hl.className = 'hh hl'; el.appendChild(hl);
-    const hr = document.createElement('div'); hr.className = 'hh hr'; el.appendChild(hr);
-  }
-  const lab = document.createElement('span'); lab.className = 'clab';
-  lab.textContent = c.name || t.name; el.appendChild(lab);
-  el.classList.toggle('tiny', parseFloat(el.style.width) < 28);
-  attachClipDrag(el, t, c);
-  requestAnimationFrame(() => drawClipCanvas(el, t, c));
-  return el;
+const el = document.createElement('div');
+el.className = 'clip' + (S.sel && S.sel.clip === c ? ' sel' : '');
+el.style.left = (c.start * S.pps) + 'px';
+el.style.width = Math.max(8, c.dur * S.pps) + 'px';
+el.style.background = hexA(t.color, 0.13);
+el.style.borderColor = hexA(t.color, 0.55);
+el._clip = c;   /* связь элемента с клипом — для живого зума */
+const cv = document.createElement('canvas'); cv.className = 'wclip';
+el.appendChild(cv);
+if(!t.instr){
+const hl = document.createElement('div'); hl.className = 'hh hl'; el.appendChild(hl);
+const hr = document.createElement('div'); hr.className = 'hh hr'; el.appendChild(hr);
+}
+const lab = document.createElement('span'); lab.className = 'clab';
+lab.textContent = c.name || t.name; el.appendChild(lab);
+el.classList.toggle('tiny', parseFloat(el.style.width) < 28);
+attachClipDrag(el, t, c);
+requestAnimationFrame(() => drawClipCanvas(el, t, c));
+return el;
 }
 function rebuildTimeline(){
-  const pd = projDur(); S.lastProjDur = pd;
-  const scroll = $('tlScroll'), content = $('tlContent');
-  const keep = scroll.scrollLeft;
-  const W = Math.max(Math.ceil(pd * S.pps) + 80, scroll.clientWidth || 0);
-  content.style.width = W + 'px';
-  drawRulerCanvas(W);
-  const lanes = $('elLanes'); lanes.innerHTML = ''; S.laneEls = {};
-  for(const t of S.tracks){
-    const ln = document.createElement('div'); ln.className = 'lane';
-    ln.style.backgroundSize = (S.pps*5) + 'px 100%, ' + S.pps + 'px 100%';
-    for(const c of t.clips) ln.appendChild(makeClipEl(t, c));
-    lanes.appendChild(ln); S.laneEls[t.id] = ln;
-  }
-  $('projMeta').textContent = 'длина ' + fmt(maxEnd());
-  scroll.scrollLeft = keep;
-  updatePlayheadEl(curPos());
+const pd = projDur(); S.lastProjDur = pd;
+const scroll = $('tlScroll'), content = $('tlContent');
+const keep = scroll.scrollLeft;
+const W = Math.max(Math.ceil(pd * S.pps) + 80, scroll.clientWidth || 0);
+content.style.width = W + 'px';
+drawRulerCanvas(W);
+const lanes = $('elLanes'); lanes.innerHTML = ''; S.laneEls = {};
+for(const t of S.tracks){
+const ln = document.createElement('div'); ln.className = 'lane';
+ln.style.backgroundSize = (S.pps*5) + 'px 100%, ' + S.pps + 'px 100%';
+for(const c of t.clips) ln.appendChild(makeClipEl(t, c));
+lanes.appendChild(ln); S.laneEls[t.id] = ln;
+}
+$('projMeta').textContent = 'длина ' + fmt(maxEnd());
+scroll.scrollLeft = keep;
+updatePlayheadEl(curPos());
+}
+/* дешёвая перекладка при живом зуме: двигаем элементы без перерисовки волн */
+function relayoutTimeline(){
+const pd = projDur(); S.lastProjDur = pd;
+const scroll = $('tlScroll'), content = $('tlContent');
+const W = Math.max(Math.ceil(pd * S.pps) + 80, scroll.clientWidth || 0);
+content.style.width = W + 'px';
+drawRulerCanvas(W);
+for(const id in S.laneEls)
+S.laneEls[id].style.backgroundSize = (S.pps*5) + 'px 100%, ' + S.pps + 'px 100%';
+document.querySelectorAll('#elLanes .clip').forEach(el => {
+if(el.classList.contains('live')){
+if(typeof S.liveStart === 'number') el.style.left = (S.liveStart * S.pps) + 'px';
+return;
+}
+const c = el._clip; if(!c) return;
+el.style.left = (c.start * S.pps) + 'px';
+el.style.width = Math.max(8, c.dur * S.pps) + 'px';
+el.classList.toggle('tiny', c.dur * S.pps < 28);
+});
+updatePlayheadEl(curPos());
 }
 function updatePlayheadEl(pos){
-  $('elPlayhead').style.left = (pos * S.pps) + 'px';
+$('elPlayhead').style.left = (pos * S.pps) + 'px';
 }
 function followScroll(pos){
-  const sc = $('tlScroll'), x = pos * S.pps;
-  if(x > sc.scrollLeft + sc.clientWidth - 50) sc.scrollLeft = x - sc.clientWidth * 0.3;
-  else if(x < sc.scrollLeft) sc.scrollLeft = Math.max(0, x - 20);
+if(G.pts.size) return;   /* пользователь сам листает — не дёргаем */
+const sc = $('tlScroll'), x = pos * S.pps;
+if(x > sc.scrollLeft + sc.clientWidth - 50) sc.scrollLeft = x - sc.clientWidth * 0.3;
+else if(x < sc.scrollLeft) sc.scrollLeft = Math.max(0, x - 20);
 }
 
 /* ═══════════ ТАЙМЛАЙН: ГОЛОВЫ ДОРОЖЕК ═══════════ */
 function rebuildHeads(){
-  const box = $('tlHeads'); box.innerHTML = '';
-  for(const t of S.tracks){
-    const h = document.createElement('div'); h.className = 'thead';
-    const r1 = document.createElement('div'); r1.className = 'trow1';
-    const nm = document.createElement('span'); nm.className = 'tname';
-    nm.textContent = t.name; nm.style.color = t.color;
-    r1.appendChild(nm);
-    if(t.instr){
-      const lp = document.createElement('button');
-      lp.className = 'tbtn-mini' + (t.loop ? ' on' : '');
-      lp.textContent = '⟳'; lp.title = 'Зациклить инструментал';
-      lp.onclick = () => {
-        t.loop = !t.loop; lp.classList.toggle('on', t.loop);
-        if(S.instrLiveSrc) S.instrLiveSrc.loop = t.loop;
-      };
-      r1.appendChild(lp);
-    }else{
-      const arm = document.createElement('button');
-      arm.className = 'arm' + (S.armedId === t.id ? ' armed' : '');
-      arm.textContent = '●'; arm.title = 'Готовность к записи';
-      arm.onclick = () => { S.armedId = t.id; rebuildHeads(); };
-      r1.appendChild(arm);
-    }
-    const m = document.createElement('button');
-    m.className = 'tbtn-mini' + (t.muted ? ' muted' : '');
-    m.textContent = 'M'; m.title = 'Заглушить дорожку';
-    m.onclick = () => { t.muted = !t.muted; m.classList.toggle('muted', t.muted); applyTrackGains(); };
-    r1.appendChild(m);
-    if(!t.instr){
-      const del = document.createElement('button');
-      del.className = 'tbtn-mini tdel'; del.textContent = '✕'; del.title = 'Удалить дорожку';
-      del.onclick = () => delTrack(t);
-      r1.appendChild(del);
-    }
-    const r2 = document.createElement('div'); r2.className = 'trow2';
-    const rg = document.createElement('input');
-    rg.type = 'range'; rg.min = 0; rg.max = 150; rg.value = Math.round(t.gain * 100);
-    const vv = document.createElement('span'); vv.className = 'tval'; vv.textContent = rg.value;
-    rg.oninput = () => { t.gain = rg.value / 100; vv.textContent = rg.value; applyTrackGains(); };
-    r2.appendChild(rg); r2.appendChild(vv);
-    h.appendChild(r1); h.appendChild(r2);
-    box.appendChild(h);
-  }
+const box = $('tlHeads'); box.innerHTML = '';
+for(const t of S.tracks){
+const h = document.createElement('div'); h.className = 'thead';
+const r1 = document.createElement('div'); r1.className = 'trow1';
+const nm = document.createElement('span'); nm.className = 'tname';
+nm.textContent = t.name; nm.style.color = t.color;
+r1.appendChild(nm);
+if(t.instr){
+const lp = document.createElement('button');
+lp.className = 'tbtn-mini' + (t.loop ? ' on' : '');
+lp.textContent = '⟳'; lp.title = 'Зациклить инструментал';
+lp.onclick = () => {
+t.loop = !t.loop; lp.classList.toggle('on', t.loop);
+if(S.instrLiveSrc) S.instrLiveSrc.loop = t.loop;
+};
+r1.appendChild(lp);
+}else{
+const arm = document.createElement('button');
+arm.className = 'arm' + (S.armedId === t.id ? ' armed' : '');
+arm.textContent = '●'; arm.title = 'Готовность к записи';
+arm.onclick = () => { S.armedId = t.id; rebuildHeads(); };
+r1.appendChild(arm);
+}
+const m = document.createElement('button');
+m.className = 'tbtn-mini' + (t.muted ? ' muted' : '');
+m.textContent = 'M'; m.title = 'Заглушить дорожку';
+m.onclick = () => { t.muted = !t.muted; m.classList.toggle('muted', t.muted); applyTrackGains(); };
+r1.appendChild(m);
+if(!t.instr){
+const del = document.createElement('button');
+del.className = 'tbtn-mini tdel'; del.textContent = '✕'; del.title = 'Удалить дорожку';
+del.onclick = () => delTrack(t);
+r1.appendChild(del);
+}
+const r2 = document.createElement('div'); r2.className = 'trow2';
+const rg = document.createElement('input');
+rg.type = 'range'; rg.min = 0; rg.max = 150; rg.value = Math.round(t.gain * 100);
+const vv = document.createElement('span'); vv.className = 'tval'; vv.textContent = rg.value;
+rg.oninput = () => { t.gain = rg.value / 100; vv.textContent = rg.value; applyTrackGains(); };
+r2.appendChild(rg); r2.appendChild(vv);
+h.appendChild(r1); h.appendChild(r2);
+box.appendChild(h);
+}
 }
 function delTrack(t){
-  if(t.clips.length && !confirm('Удалить дорожку ' + t.name + ' (' + t.clips.length + ' клипов)?')) return;
-  S.tracks = S.tracks.filter(x => x !== t);
-  if(S.armedId === t.id){ const v = vocalTracks()[0]; S.armedId = v ? v.id : null; }
-  if(S.sel && S.sel.track === t) S.sel = null;
-  rebuildHeads(); rebuildTimeline(); updateClipTools();
+if(t.clips.length && !confirm('Удалить дорожку ' + t.name + ' (' + t.clips.length + ' клипов)?')) return;
+S.tracks = S.tracks.filter(x => x !== t);
+if(S.armedId === t.id){ const v = vocalTracks()[0]; S.armedId = v ? v.id : null; }
+if(S.sel && S.sel.track === t) S.sel = null;
+rebuildHeads(); rebuildTimeline(); updateClipTools();
 }
 $('btnAddTrack').addEventListener('click', () => {
-  if(vocalTracks().length >= 8) return toast('Максимум 8 вокальных дорожек');
-  const t = addVocalTrack();
-  rebuildHeads(); rebuildTimeline();
-  toast('Дорожка ' + t.name + ' создана и вооружена', 'okk');
+if(vocalTracks().length >= 8) return toast('Максимум 8 вокальных дорожек');
+const t = addVocalTrack();
+rebuildHeads(); rebuildTimeline();
+toast('Дорожка ' + t.name + ' создана и вооружена', 'okk');
 });
 
 /* ═══════════ ТАЙМЛАЙН: ВЫДЕЛЕНИЕ / МОНТАЖ ═══════════ */
 function selectClip(t, c, el){
-  S.sel = { track:t, clip:c };
-  document.querySelectorAll('.clip.sel').forEach(e => e.classList.remove('sel'));
-  if(el) el.classList.add('sel');
-  updateClipTools();
+S.sel = { track:t, clip:c };
+document.querySelectorAll('.clip.sel').forEach(e => e.classList.remove('sel'));
+if(el) el.classList.add('sel');
+updateClipTools();
 }
 function updateClipTools(){
-  const info = $('clipInfo');
-  if(!S.sel){
-    info.textContent = 'кликните на клип — его можно двигать и резать';
-    $('btnCut').disabled = true; $('btnDelClip').disabled = true;
-    return;
-  }
-  const { track, clip } = S.sel;
-  info.textContent = track.name + ' · ' + (clip.name || 'клип') + ' · старт ' + fmt(clip.start) + ' · длина ' + fmt(clip.dur);
-  $('btnDelClip').disabled = false;
-  $('btnCut').disabled = !(S.playhead > clip.start + 0.03 && S.playhead < clip.start + clip.dur - 0.03);
+const info = $('clipInfo');
+if(!S.sel){
+info.textContent = 'кликните на клип — его можно двигать и резать';
+$('btnCut').disabled = true; $('btnDelClip').disabled = true;
+return;
+}
+const { track, clip } = S.sel;
+info.textContent = track.name + ' · ' + (clip.name || 'клип') + ' · старт ' + fmt(clip.start) + ' · длина ' + fmt(clip.dur);
+$('btnDelClip').disabled = false;
+$('btnCut').disabled = !(S.playhead > clip.start + 0.03 && S.playhead < clip.start + clip.dur - 0.03);
 }
 function delSelClip(){
-  if(!S.sel) return;
-  const { track, clip } = S.sel;
-  track.clips = track.clips.filter(c => c !== clip);
-  S.sel = null;
-  rebuildTimeline(); updateClipTools();
-  toast('Клип удалён');
+if(!S.sel) return;
+const { track, clip } = S.sel;
+track.clips = track.clips.filter(c => c !== clip);
+S.sel = null;
+rebuildTimeline(); updateClipTools();
+toast('Клип удалён');
 }
 $('btnDelClip').addEventListener('click', delSelClip);
 $('btnCut').addEventListener('click', () => {
-  if(!S.sel) return;
-  const { track, clip } = S.sel;
-  const p = S.playhead;
-  if(p <= clip.start + 0.03 || p >= clip.start + clip.dur - 0.03)
-    return toast('Поставьте плейхед внутрь клипа');
-  const d1 = p - clip.start;
-  const c2 = { id:uid(), buffer:clip.buffer, offset:clip.offset + d1, dur:clip.dur - d1, start:p, name:(clip.name||'') + '·b' };
-  clip.dur = d1; clip.name = (clip.name || '') + '·a';
-  track.clips.push(c2);
-  S.sel = { track, clip:c2 };
-  rebuildTimeline(); updateClipTools();
+if(!S.sel) return;
+const { track, clip } = S.sel;
+const p = S.playhead;
+if(p <= clip.start + 0.03 || p >= clip.start + clip.dur - 0.03)
+return toast('Поставьте плейхед внутрь клипа');
+const d1 = p - clip.start;
+const c2 = { id:uid(), buffer:clip.buffer, offset:clip.offset + d1, dur:clip.dur - d1, start:p, name:(clip.name||'') + '·b' };
+clip.dur = d1; clip.name = (clip.name || '') + '·a';
+track.clips.push(c2);
+S.sel = { track, clip:c2 };
+rebuildTimeline(); updateClipTools();
 });
 function attachClipDrag(el, t, c){
-  el.addEventListener('pointerdown', ev => {
-    ev.stopPropagation();
-    const cls = ev.target.classList;
-    const mode = cls.contains('hl') ? 'trimL' : cls.contains('hr') ? 'trimR' : 'move';
-    if(t.instr && mode !== 'move') return;
-    el.setPointerCapture(ev.pointerId);
-    const x0 = ev.clientX;
-    const o = { start:c.start, offset:c.offset, dur:c.dur };
-    let moved = false;
-    const mv = e2 => {
-      const ds = (e2.clientX - x0) / S.pps;
-      if(Math.abs(e2.clientX - x0) > 3) moved = true;
-      if(mode === 'move'){
-        c.start = Math.max(0, o.start + ds);
-      }else if(mode === 'trimL'){
-        const d = clamp(ds, Math.max(-o.offset, -o.start), o.dur - 0.05);
-        c.start = o.start + d; c.offset = o.offset + d; c.dur = o.dur - d;
-      }else{
-        c.dur = clamp(o.dur + ds, 0.05, c.buffer.duration - c.offset);
-      }
-      el.style.left = (c.start * S.pps) + 'px';
-      el.style.width = Math.max(8, c.dur * S.pps) + 'px';
-      el.classList.toggle('tiny', parseFloat(el.style.width) < 28);
-    };
-    const up = () => {
-      el.removeEventListener('pointermove', mv);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', up);
-      if(moved){
-        drawClipCanvas(el, t, c);
-        if(!S.recording && projDur() !== S.lastProjDur) rebuildTimeline();
-      }
-      selectClip(t, c, el);
-    };
-    el.addEventListener('pointermove', mv);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-    selectClip(t, c, el);
-  });
+el.addEventListener('pointerdown', ev => {
+if(G.pts.size) return;      /* второй палец — это жест навигации, клип не трогаем */
+ev.stopPropagation();
+const cls = ev.target.classList;
+const mode = cls.contains('hl') ? 'trimL' : cls.contains('hr') ? 'trimR' : 'move';
+if(t.instr && mode !== 'move') return;
+el.setPointerCapture(ev.pointerId);
+const x0 = ev.clientX;
+const o = { start:c.start, offset:c.offset, dur:c.dur };
+let moved = false;
+const mv = e2 => {
+const ds = (e2.clientX - x0) / S.pps;
+if(Math.abs(e2.clientX - x0) > 3) moved = true;
+if(mode === 'move'){
+c.start = Math.max(0, o.start + ds);
+}else if(mode === 'trimL'){
+const d = clamp(ds, Math.max(-o.offset, -o.start), o.dur - 0.05);
+c.start = o.start + d; c.offset = o.offset + d; c.dur = o.dur - d;
+}else{
+c.dur = clamp(o.dur + ds, 0.05, c.buffer.duration - c.offset);
+}
+el.style.left = (c.start * S.pps) + 'px';
+el.style.width = Math.max(8, c.dur * S.pps) + 'px';
+el.classList.toggle('tiny', parseFloat(el.style.width) < 28);
+};
+const up = () => {
+el.removeEventListener('pointermove', mv);
+el.removeEventListener('pointerup', up);
+el.removeEventListener('pointercancel', up);
+if(moved){
+drawClipCanvas(el, t, c);
+if(!S.recording && projDur() !== S.lastProjDur) rebuildTimeline();
+}
+selectClip(t, c, el);
+};
+el.addEventListener('pointermove', mv);
+el.addEventListener('pointerup', up);
+el.addEventListener('pointercancel', up);
+selectClip(t, c, el);
+});
 }
 /* линейка = установка плейхеда */
 $('elRuler').addEventListener('pointerdown', e => {
-  if(S.run) return;
-  const ruler = $('elRuler');
-  ruler.setPointerCapture(e.pointerId);
-  const move = ev => {
-    const r = ruler.getBoundingClientRect();
-    S.playhead = clamp((ev.clientX - r.left) / S.pps, 0, projDur());
-    updatePlayheadEl(S.playhead); updateClipTools();
-  };
-  move(e);
-  const up = () => { ruler.removeEventListener('pointermove', move); ruler.removeEventListener('pointerup', up); };
-  ruler.addEventListener('pointermove', move);
-  ruler.addEventListener('pointerup', up);
+if(S.run || G.pts.size) return;
+e.stopPropagation();
+const ruler = $('elRuler');
+ruler.setPointerCapture(e.pointerId);
+const move = ev => {
+const r = ruler.getBoundingClientRect();
+S.playhead = clamp((ev.clientX - r.left) / S.pps, 0, projDur());
+updatePlayheadEl(S.playhead); updateClipTools();
+};
+move(e);
+const up = () => { ruler.removeEventListener('pointermove', move); ruler.removeEventListener('pointerup', up); };
+ruler.addEventListener('pointermove', move);
+ruler.addEventListener('pointerup', up);
 });
 
-/* ═══════════ ЗУМ ═══════════ */
+/* ═══════════ ЖЕСТЫ: ПАН ОДНИМ ПАЛЬЦЕМ + ПИНЧ-ЗУМ ДВУМЯ ═══════════ */
+function syncZi(){
+let best = 0;
+ZOOMS.forEach((z, i) => { if(Math.abs(z - S.pps) < Math.abs(ZOOMS[best] - S.pps)) best = i; });
+zi = best;
+}
+const grid = $('tlGrid');
+grid.addEventListener('pointerdown', e => {
+if(e.target === $('tlScroll')) return;                        /* зона скроллбара */
+if(e.target.closest('input,button,select,label,a')) return;   /* фейдеры/кнопки дорожек */
+grid.setPointerCapture(e.pointerId);
+G.pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+if(G.pts.size === 2){
+const [a,b] = [...G.pts.values()];
+G.mode = 'pinch'; G.zooming = false;
+G.lastMid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+G.lastDist = Math.hypot(a.x-b.x, a.y-b.y);
+const rect = $('tlScroll').getBoundingClientRect();
+G.anchorSec = ($('tlScroll').scrollLeft + (G.lastMid.x - rect.left)) / S.pps;
+}else{
+G.mode = 'pan';
+G.lastMid = {x:e.clientX, y:e.clientY};
+}
+});
+grid.addEventListener('pointermove', e => {
+if(!G.pts.has(e.pointerId)) return;
+G.pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+const sc = $('tlScroll');
+if(G.mode === 'pan' && G.pts.size === 1){
+sc.scrollLeft -= e.clientX - G.lastMid.x;                 /* хват и двигать */
+G.lastMid = {x:e.clientX, y:e.clientY};
+}else if(G.mode === 'pinch' && G.pts.size === 2){
+const [a,b] = [...G.pts.values()];
+const m = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+const d = Math.hypot(a.x-b.x, a.y-b.y);
+sc.scrollLeft -= (m.x - G.lastMid.x);                     /* два пальца — прокрутка */
+if(d > 0 && G.lastDist > 0){
+const np = clamp(S.pps * d / G.lastDist, 10, 160);    /* щипок — зум */
+if(Math.abs(np - S.pps) > 0.01){
+S.pps = np; G.zooming = true;
+relayoutTimeline();
+const rect = sc.getBoundingClientRect();
+sc.scrollLeft = G.anchorSec * S.pps - (m.x - rect.left);
+G.anchorSec = (sc.scrollLeft + (m.x - rect.left)) / S.pps;
+$('zoomVal').textContent = Math.round(S.pps);
+}
+}
+G.lastMid = m; G.lastDist = d;
+}
+});
+function gestureEnd(e){
+G.pts.delete(e.pointerId);
+if(G.pts.size === 1){
+const [a] = [...G.pts.values()];
+G.mode = 'pan'; G.lastMid = {x:a.x, y:a.y};
+}else if(G.pts.size === 0){
+if(G.mode === 'pinch'){
+syncZi();
+if(G.zooming) rebuildTimeline();   /* чёткие волны после жеста */
+}
+G.mode = null; G.zooming = false;
+}
+}
+grid.addEventListener('pointerup', gestureEnd);
+grid.addEventListener('pointercancel', gestureEnd);
+/* на компьютере: Ctrl + колесо = зум */
+let wheelT = null;
+$('tlScroll').addEventListener('wheel', e => {
+if(!e.ctrlKey) return;
+e.preventDefault();
+const sc = $('tlScroll'), rect = sc.getBoundingClientRect();
+const anchor = (sc.scrollLeft + (e.clientX - rect.left)) / S.pps;
+S.pps = clamp(S.pps * (e.deltaY < 0 ? 1.15 : 1/1.15), 10, 160);
+relayoutTimeline();
+sc.scrollLeft = anchor * S.pps - (e.clientX - rect.left);
+$('zoomVal').textContent = Math.round(S.pps);
+clearTimeout(wheelT);
+wheelT = setTimeout(() => { syncZi(); rebuildTimeline(); }, 300);
+}, {passive:false});
+
+/* ═══════════ ЗУМ (КНОПКИ) ═══════════ */
 function setZoom(i){
-  const old = S.pps;
-  zi = clamp(i, 0, ZOOMS.length - 1);
-  S.pps = ZOOMS[zi];
-  $('zoomVal').textContent = S.pps;
-  const sc = $('tlScroll');
-  const anchor = (sc.scrollLeft + 40) / old;
-  rebuildTimeline();
-  sc.scrollLeft = anchor * S.pps - 40;
+const old = S.pps;
+zi = clamp(i, 0, ZOOMS.length - 1);
+S.pps = ZOOMS[zi];
+$('zoomVal').textContent = S.pps;
+const sc = $('tlScroll');
+const anchor = (sc.scrollLeft + 40) / old;
+rebuildTimeline();
+sc.scrollLeft = anchor * S.pps - 40;
 }
 $('zoomIn').addEventListener('click', () => setZoom(zi + 1));
 $('zoomOut').addEventListener('click', () => setZoom(zi - 1));
@@ -1201,69 +1311,69 @@ $('zoomOut').addEventListener('click', () => setZoom(zi - 1));
 const mState = { in:{v:0,p:0,t:0}, out:{v:0,p:0,t:0} };
 const tdBuf = new Float32Array(2048);
 function readLevel(analyser){
-  if(!analyser) return 0;
-  analyser.getFloatTimeDomainData(tdBuf);
-  let pk = 0;
-  for(let i = 0; i < tdBuf.length; i += 2){ const a = Math.abs(tdBuf[i]); if(a > pk) pk = a; }
-  return Math.min(1, pk * 1.35);
+if(!analyser) return 0;
+analyser.getFloatTimeDomainData(tdBuf);
+let pk = 0;
+for(let i = 0; i < tdBuf.length; i += 2){ const a = Math.abs(tdBuf[i]); if(a > pk) pk = a; }
+return Math.min(1, pk * 1.35);
 }
 function drawMeter(cv, st, level, now){
-  st.v = Math.max(level, st.v * 0.88);
-  if(level >= st.p){ st.p = level; st.t = now; } else if(now - st.t > 650) st.p *= 0.93;
-  const dpr = fitCanvas(cv), g = cv.getContext('2d');
-  const W = cv.width, H = cv.height, N = 34, gap = 2*dpr;
-  if(!W || !H) return;
-  const sw = (W - gap*(N-1)) / N;
-  g.clearRect(0, 0, W, H);
-  const lit = Math.round(Math.pow(st.v, 0.7) * N);
-  const pkIdx = Math.round(Math.pow(st.p, 0.7) * N);
-  for(let i = 0; i < N; i++){
-    const x = i*(sw + gap);
-    const frac = i/N;
-    g.fillStyle = frac > .86 ? '#ff5148' : frac > .62 ? '#ffc24b' : '#43e07c';
-    g.globalAlpha = i < lit ? 1 : .12;
-    g.fillRect(x, H*0.18, sw, H*0.64);
-  }
-  g.globalAlpha = 1;
-  if(pkIdx > 0 && pkIdx <= N){
-    g.fillStyle = '#fff';
-    g.fillRect((pkIdx-1)*(sw+gap), H*0.1, sw, H*0.8);
-  }
+st.v = Math.max(level, st.v * 0.88);
+if(level >= st.p){ st.p = level; st.t = now; } else if(now - st.t > 650) st.p *= 0.93;
+const dpr = fitCanvas(cv), g = cv.getContext('2d');
+const W = cv.width, H = cv.height, N = 34, gap = 2*dpr;
+if(!W || !H) return;
+const sw = (W - gap*(N-1)) / N;
+g.clearRect(0, 0, W, H);
+const lit = Math.round(Math.pow(st.v, 0.7) * N);
+const pkIdx = Math.round(Math.pow(st.p, 0.7) * N);
+for(let i = 0; i < N; i++){
+const x = i*(sw + gap);
+const frac = i/N;
+g.fillStyle = frac > .86 ? '#ff5148' : frac > .62 ? '#ffc24b' : '#43e07c';
+g.globalAlpha = i < lit ? 1 : .12;
+g.fillRect(x, H*0.18, sw, H*0.64);
+}
+g.globalAlpha = 1;
+if(pkIdx > 0 && pkIdx <= N){
+g.fillStyle = '#fff';
+g.fillRect((pkIdx-1)*(sw+gap), H*0.1, sw, H*0.8);
+}
 }
 
 /* ═══════════ ГЛАВНЫЙ ЦИКЛ ═══════════ */
 function tick(){
-  requestAnimationFrame(tick);
-  const now = performance.now();
-  if(S.ctx){
-    drawMeter($('mIn'),  mState.in,  readLevel(S.analyserIn),     now);
-    drawMeter($('mOut'), mState.out, readLevel(S.analyserMaster), now);
-    if(S.run){
-      const ct = S.ctx.currentTime;
-      if(ct < S.run.t0){
-        const n = clamp(Math.ceil((S.run.t0 - ct) / 0.6), 1, 3);
-        $('lcd').textContent = '● ' + n;
-        $('lcd').classList.add('count');
-      }else{
-        $('lcd').classList.remove('count');
-        const pos = S.run.pos0 + (ct - S.run.t0);
-        $('lcd').textContent = fmt(pos);
-        const limit = (S.recording && instrTrack().loop) ? Math.max(projDur(), 300) : projDur();
-        if(pos >= limit - 0.02){ stopRun(); }
-      }
-      if(S.run){
-        updatePlayheadEl(curPos());
-        followScroll(curPos());
-        if(S.recording) updateLive(now);
-      }
-    }else{
-      $('lcd').classList.remove('count');
-      $('lcd').textContent = fmt(S.playhead);
-    }
-  }else{
-    drawMeter($('mIn'),  mState.in,  0, now);
-    drawMeter($('mOut'), mState.out, 0, now);
-  }
+requestAnimationFrame(tick);
+const now = performance.now();
+if(S.ctx){
+drawMeter($('mIn'),  mState.in,  readLevel(S.analyserIn),     now);
+drawMeter($('mOut'), mState.out, readLevel(S.analyserMaster), now);
+if(S.run){
+const ct = S.ctx.currentTime;
+if(ct < S.run.t0){
+const n = clamp(Math.ceil((S.run.t0 - ct) / 0.6), 1, 3);
+$('lcd').textContent = '● ' + n;
+$('lcd').classList.add('count');
+}else{
+$('lcd').classList.remove('count');
+const pos = S.run.pos0 + (ct - S.run.t0);
+$('lcd').textContent = fmt(pos);
+const limit = (S.recording && instrTrack().loop) ? Math.max(projDur(), 300) : projDur();
+if(pos >= limit - 0.02){ stopRun(); }
+}
+if(S.run){
+updatePlayheadEl(curPos());
+followScroll(curPos());
+if(S.recording) updateLive(now);
+}
+}else{
+$('lcd').classList.remove('count');
+$('lcd').textContent = fmt(S.playhead);
+}
+}else{
+drawMeter($('mIn'),  mState.in,  0, now);
+drawMeter($('mOut'), mState.out, 0, now);
+}
 }
 
 /* ═══════════ ФЕЙДЕРЫ / ТУМБЛЕРЫ ═══════════ */
@@ -1272,132 +1382,132 @@ $('chkMon').addEventListener('change', applyMonitor);
 
 /* ═══════════ ЭКСПОРТ ═══════════ */
 function encodeWAV(channels, sampleRate){
-  const nCh = channels.length, len = channels[0].length;
-  const bytes = 44 + len * nCh * 2;
-  const ab = new ArrayBuffer(bytes), v = new DataView(ab);
-  const wstr = (o, s) => { for(let i = 0; i < s.length; i++) v.setUint8(o+i, s.charCodeAt(i)); };
-  wstr(0,'RIFF'); v.setUint32(4, bytes-8, true); wstr(8,'WAVE');
-  wstr(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,nCh,true);
-  v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*nCh*2,true);
-  v.setUint16(32,nCh*2,true); v.setUint16(34,16,true);
-  wstr(36,'data'); v.setUint32(40,len*nCh*2,true);
-  let o = 44;
-  for(let i = 0; i < len; i++)
-    for(let c = 0; c < nCh; c++){
-      let x = Math.max(-1, Math.min(1, channels[c][i]));
-      v.setInt16(o, x < 0 ? x*0x8000 : x*0x7FFF, true); o += 2;
-    }
-  return new Blob([ab], {type:'audio/wav'});
+const nCh = channels.length, len = channels[0].length;
+const bytes = 44 + len * nCh * 2;
+const ab = new ArrayBuffer(bytes), v = new DataView(ab);
+const wstr = (o, s) => { for(let i = 0; i < s.length; i++) v.setUint8(o+i, s.charCodeAt(i)); };
+wstr(0,'RIFF'); v.setUint32(4, bytes-8, true); wstr(8,'WAVE');
+wstr(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,nCh,true);
+v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*nCh*2,true);
+v.setUint16(32,nCh*2,true); v.setUint16(34,16,true);
+wstr(36,'data'); v.setUint32(40,len*nCh*2,true);
+let o = 44;
+for(let i = 0; i < len; i++)
+for(let c = 0; c < nCh; c++){
+let x = Math.max(-1, Math.min(1, channels[c][i]));
+v.setInt16(o, x < 0 ? x*0x8000 : x*0x7FFF, true); o += 2;
+}
+return new Blob([ab], {type:'audio/wav'});
 }
 function mixEnd(vocalsOnly){
-  let end = 0;
-  for(const t of S.tracks){
-    if(vocalsOnly && t.instr) continue;
-    for(const c of t.clips) end = Math.max(end, c.start + c.dur);
-  }
-  return end;
+let end = 0;
+for(const t of S.tracks){
+if(vocalsOnly && t.instr) continue;
+for(const c of t.clips) end = Math.max(end, c.start + c.dur);
+}
+return end;
 }
 async function renderMix(vocalsOnly){
-  const sr = S.ctx.sampleRate;
-  const end = mixEnd(vocalsOnly);
-  const off = new OfflineAudioContext(2, Math.max(1, Math.ceil(end * sr)), sr);
-  for(const t of S.tracks){
-    if(vocalsOnly && t.instr) continue;
-    if(!t.clips.length) continue;
-    const g = off.createGain();
-    g.gain.value = t.muted ? 0 : t.gain;
-    g.connect(off.destination);
-    for(const c of t.clips){
-      const s = off.createBufferSource();
-      s.buffer = c.buffer;
-      if(t.instr && t.loop){
-        s.loop = true; s.loopStart = c.offset; s.loopEnd = c.offset + c.dur;
-        s.connect(g); s.start(c.start, c.offset % c.dur);
-      }else{
-        s.connect(g); s.start(c.start, c.offset, c.dur);
-      }
-    }
-  }
-  return off.startRendering();
+const sr = S.ctx.sampleRate;
+const end = mixEnd(vocalsOnly);
+const off = new OfflineAudioContext(2, Math.max(1, Math.ceil(end * sr)), sr);
+for(const t of S.tracks){
+if(vocalsOnly && t.instr) continue;
+if(!t.clips.length) continue;
+const g = off.createGain();
+g.gain.value = t.muted ? 0 : t.gain;
+g.connect(off.destination);
+for(const c of t.clips){
+const s = off.createBufferSource();
+s.buffer = c.buffer;
+if(t.instr && t.loop){
+s.loop = true; s.loopStart = c.offset; s.loopEnd = c.offset + c.dur;
+s.connect(g); s.start(c.start, c.offset % c.dur);
+}else{
+s.connect(g); s.start(c.start, c.offset, c.dur);
+}
+}
+}
+return off.startRendering();
 }
 function loadLame(){
-  return new Promise((res, rej) => {
-    if(window.lamejs) return res();
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js';
-    s.onload = () => window.lamejs ? res() : rej(new Error('lamejs'));
-    s.onerror = () => rej(new Error('нет сети'));
-    document.head.appendChild(s);
-  });
+return new Promise((res, rej) => {
+if(window.lamejs) return res();
+const s = document.createElement('script');
+s.src = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js';
+s.onload = () => window.lamejs ? res() : rej(new Error('lamejs'));
+s.onerror = () => rej(new Error('нет сети'));
+document.head.appendChild(s);
+});
 }
 function encodeMP3(buf){
-  const sr = buf.sampleRate, L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L;
-  const toI16 = f => { const o = new Int16Array(f.length);
-    for(let i = 0; i < f.length; i++){ const x = Math.max(-1, Math.min(1, f[i])); o[i] = x < 0 ? x*0x8000 : x*0x7FFF; } return o; };
-  const l = toI16(L), r = toI16(R);
-  const enc = new lamejs.Mp3Encoder(2, sr, 192), block = 1152, parts = [];
-  for(let i = 0; i < l.length; i += block){
-    const d = enc.encodeBuffer(l.subarray(i, i+block), r.subarray(i, i+block));
-    if(d.length) parts.push(d);
-  }
-  const end = enc.flush(); if(end.length) parts.push(end);
-  return new Blob(parts, {type:'audio/mpeg'});
+const sr = buf.sampleRate, L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L;
+const toI16 = f => { const o = new Int16Array(f.length);
+for(let i = 0; i < f.length; i++){ const x = Math.max(-1, Math.min(1, f[i])); o[i] = x < 0 ? x*0x8000 : x*0x7FFF; } return o; };
+const l = toI16(L), r = toI16(R);
+const enc = new lamejs.Mp3Encoder(2, sr, 192), block = 1152, parts = [];
+for(let i = 0; i < l.length; i += block){
+const d = enc.encodeBuffer(l.subarray(i, i+block), r.subarray(i, i+block));
+if(d.length) parts.push(d);
+}
+const end = enc.flush(); if(end.length) parts.push(end);
+return new Blob(parts, {type:'audio/mpeg'});
 }
 $('btnWavVox').addEventListener('click', async () => {
-  if(S.busy) return;
-  if(!mixEnd(true)) return toast('Нет записанных вокальных дорожек');
-  S.busy = true; toast('Сводим вокал…');
-  try{
-    await ensureCtx();
-    const b = await renderMix(true);
-    download(encodeWAV([b.getChannelData(0), b.getChannelData(1)], b.sampleRate), 'am8_vocals_' + stamp() + '.wav');
-    toast('Вокал (все дорожки) сохранён', 'okk');
-  }catch(e){ toast('Ошибка экспорта', 'err'); }
-  S.busy = false;
+if(S.busy) return;
+if(!mixEnd(true)) return toast('Нет записанных вокальных дорожек');
+S.busy = true; toast('Сводим вокал…');
+try{
+await ensureCtx();
+const b = await renderMix(true);
+download(encodeWAV([b.getChannelData(0), b.getChannelData(1)], b.sampleRate), 'am8_vocals_' + stamp() + '.wav');
+toast('Вокал (все дорожки) сохранён', 'okk');
+}catch(e){ toast('Ошибка экспорта', 'err'); }
+S.busy = false;
 });
 $('btnWavMix').addEventListener('click', async () => {
-  if(S.busy) return;
-  if(!mixEnd(false)) return toast('Нечего экспортировать');
-  S.busy = true; toast('Сводим микс…');
-  try{
-    await ensureCtx();
-    const b = await renderMix(false);
-    download(encodeWAV([b.getChannelData(0), b.getChannelData(1)], b.sampleRate), 'am8_mix_' + stamp() + '.wav');
-    toast('Микс WAV сохранён', 'okk');
-  }catch(e){ toast('Ошибка экспорта', 'err'); }
-  S.busy = false;
+if(S.busy) return;
+if(!mixEnd(false)) return toast('Нечего экспортировать');
+S.busy = true; toast('Сводим микс…');
+try{
+await ensureCtx();
+const b = await renderMix(false);
+download(encodeWAV([b.getChannelData(0), b.getChannelData(1)], b.sampleRate), 'am8_mix_' + stamp() + '.wav');
+toast('Микс WAV сохранён', 'okk');
+}catch(e){ toast('Ошибка экспорта', 'err'); }
+S.busy = false;
 });
 $('btnMp3Mix').addEventListener('click', async () => {
-  if(S.busy) return;
-  if(!mixEnd(false)) return toast('Нечего экспортировать');
-  S.busy = true; toast('Кодируем MP3…');
-  try{
-    await ensureCtx(); await loadLame();
-    const b = await renderMix(false);
-    download(encodeMP3(b), 'am8_mix_' + stamp() + '.mp3');
-    toast('MP3 сохранён', 'okk');
-  }catch(e){ toast('Для MP3 нужен интернет (кодек грузится из сети)', 'err'); }
-  S.busy = false;
+if(S.busy) return;
+if(!mixEnd(false)) return toast('Нечего экспортировать');
+S.busy = true; toast('Кодируем MP3…');
+try{
+await ensureCtx(); await loadLame();
+const b = await renderMix(false);
+download(encodeMP3(b), 'am8_mix_' + stamp() + '.mp3');
+toast('MP3 сохранён', 'okk');
+}catch(e){ toast('Для MP3 нужен интернет (кодек грузится из сети)', 'err'); }
+S.busy = false;
 });
 $('btnShare').addEventListener('click', async () => {
-  if(S.busy) return;
-  const hasMix = mixEnd(false) > 0, hasVox = mixEnd(true) > 0;
-  if(!hasMix && !hasVox) return toast('Сначала запишите дорожки');
-  S.busy = true;
-  try{
-    await ensureCtx();
-    const b = await renderMix(!hasMix);
-    const blob = encodeWAV([b.getChannelData(0), b.getChannelData(1)], b.sampleRate);
-    const file = new File([blob], 'am8_mix_' + stamp() + '.wav', {type:'audio/wav'});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      try{ await navigator.share({files:[file], title:'TAPEDECK AM8 — дубль'}); }
-      catch(e){ if(e && e.name !== 'AbortError') toast('Не получилось поделиться', 'err'); }
-    }else{
-      download(blob, file.name);
-      toast('Шеринг недоступен — файл скачан');
-    }
-  }catch(e){ toast('Ошибка экспорта', 'err'); }
-  S.busy = false;
+if(S.busy) return;
+const hasMix = mixEnd(false) > 0, hasVox = mixEnd(true) > 0;
+if(!hasMix && !hasVox) return toast('Сначала запишите дорожки');
+S.busy = true;
+try{
+await ensureCtx();
+const b = await renderMix(!hasMix);
+const blob = encodeWAV([b.getChannelData(0), b.getChannelData(1)], b.sampleRate);
+const file = new File([blob], 'am8_mix_' + stamp() + '.wav', {type:'audio/wav'});
+if(navigator.canShare && navigator.canShare({files:[file]})){
+try{ await navigator.share({files:[file], title:'TAPEDECK AM8 — дубль'}); }
+catch(e){ if(e && e.name !== 'AbortError') toast('Не получилось поделиться', 'err'); }
+}else{
+download(blob, file.name);
+toast('Шеринг недоступен — файл скачан');
+}
+}catch(e){ toast('Ошибка экспорта', 'err'); }
+S.busy = false;
 });
 
 /* ═══════════ СТАРТ ═══════════ */
